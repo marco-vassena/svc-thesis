@@ -1,0 +1,8 @@
+*.pdf
+*.gz
+*.log
+*.aux
+*.out
+*.toc
+*.tdo
+*minted*

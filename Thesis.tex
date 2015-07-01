@@ -1,0 +1,48 @@
+\documentclass[draft,12pt,a4paper]{report}
+
+\usepackage{hyperref}
+\usepackage[parfill]{parskip}
+\usepackage{minted}
+\usepackage{subfiles}
+
+% This is used to specify fonts and configurationss
+\usepackage[no-math]{fontspec}
+% Sets a monofont with unicode character
+\setmonofont[Scale=MatchLowercase]{Apple Symbols}
+
+% Alternative Font + fill for some missing chars
+%\setmonofont[Scale=MatchLowercase]{Menlo}
+%\usepackage{MnSymbol}
+%\usepackage{newunicodechar}
+%\newunicodechar{⊥}{$\bot$}
+%\newunicodechar{⟪}{$\llangle$}
+%\newunicodechar{⟫}{$\rrangle$}
+
+% no red boxes on parser error:
+\makeatletter
+\expandafter\def\csname PYGdefault@tok@err\endcsname{\def\PYGdefault@bc##1{{\strut ##1}}}
+\makeatother
+
+\usepackage{bussproofs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% TODO notes
+\usepackage[textwidth=3.7cm]{todonotes} \setlength{\marginparwidth}{3.7cm}
+
+\begin{document}
+
+\title{SVC - A prototype of a Structure-aware version control}
+\author{Marco Vassena 4110161} 
+
+\maketitle
+\tableofcontents
+\listoftodos
+
+\subfile{./Format/Format.tex}
+\subfile{./FormalModel/FormalModel.tex}
+
+\bibliography{svc.bib}{}
+\bibliographystyle{plain}
+
+\end{document}
