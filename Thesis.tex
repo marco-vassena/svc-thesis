@@ -5,6 +5,9 @@
 \usepackage{minted}
 \usepackage{subfiles}
 
+\usepackage[dvipsnames]{xcolor}
+
+
 % This is used to specify fonts and configurationss
 \usepackage[no-math]{fontspec}
 % Sets a monofont with unicode character
@@ -13,10 +16,11 @@
 % Alternative Font + fill for some missing chars
 %\setmonofont[Scale=MatchLowercase]{Menlo}
 %\usepackage{MnSymbol}
-%\usepackage{newunicodechar}
+\usepackage{newunicodechar}
 %\newunicodechar{⊥}{$\bot$}
 %\newunicodechar{⟪}{$\llangle$}
 %\newunicodechar{⟫}{$\rrangle$}
+\newunicodechar{ᶜ}{$^c$}
 
 % no red boxes on parser error:
 \makeatletter
@@ -37,7 +41,7 @@
 
 \maketitle
 \tableofcontents
-\listoftodos
+\listoftodos 
 
 \subfile{./Format/Format.tex}
 \subfile{./FormalModel/FormalModel.tex}
