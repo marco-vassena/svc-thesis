@@ -13,18 +13,6 @@
 % Sets a monofont with unicode character
 \setmonofont[Scale=MatchLowercase]{Apple Symbols}
 
-% Alternative Font + fill for some missing chars
-%\setmonofont[Scale=MatchLowercase]{Menlo}
-%\usepackage{MnSymbol}
-\usepackage{newunicodechar}
-%\newunicodechar{⊥}{$\bot$}
-%\newunicodechar{⟪}{$\llangle$}
-%\newunicodechar{⟫}{$\rrangle$}
-\newunicodechar{ᶜ}{$^c$}
-\newunicodechar{ₑ}{$_e$}
-\newunicodechar{ⱽ}{$^v$}
-\newunicodechar{ˢ}{$^s$}
-\newunicodechar{ᵗ}{$^t$}
 
 % no red boxes on parser error:
 \makeatletter
@@ -38,6 +26,20 @@
 % TODO notes
 \usepackage[textwidth=3.7cm]{todonotes} \setlength{\marginparwidth}{3.7cm}
 
+% Alternative Font + fill for some missing chars
+%\setmonofont[Scale=MatchLowercase]{Menlo}
+%\usepackage{MnSymbol}
+\usepackage{newunicodechar}
+%\newunicodechar{⊥}{$\bot$}
+%\newunicodechar{⟪}{$\llangle$}
+%\newunicodechar{⟫}{$\rrangle$}
+\newunicodechar{ᶜ}{$^c$}
+\newunicodechar{ₑ}{$_e$}
+\newunicodechar{ⱽ}{$^v$}
+\newunicodechar{ˢ}{$^s$}
+\newunicodechar{ᵗ}{$^t$}
+
+
 \begin{document}
 
 \title{SVC - A prototype of a Structure-aware version control}
@@ -47,10 +49,12 @@
 \tableofcontents
 \listoftodos 
 
-\subfile{./Format/Format.tex}
+%boo! \cite{Bove09}.
+
+%\subfile{./Format/Format.tex}
 \subfile{./FormalModel/FormalModel.tex}
 
-\bibliography{svc}{}
 \bibliographystyle{plain}
+\bibliography{svc}
 
 \end{document}

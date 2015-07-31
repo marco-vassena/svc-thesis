@@ -206,7 +206,7 @@ for edits. Lastly sections \ref{subsec:Diff3} and \ref{subsec:Merged3} further e
 	following are reported here.
 	Their implementation is straightforward and omitted.
 
-\begin{minted}{haskell}
+\begin{minted}{agda}
 _+++_ : DList as -> DList bs -> DList (as ++ bs)
 dsplit : ∀ {{as bs}} -> DList (as ++ bs) -> DList as × DList bs
 \end{minted}
@@ -315,8 +315,7 @@ leaving the list of its children, and similarly for \texttt{Ins α} in \texttt{�
 	The two lists are used as stacks, from which arguments for 
 	edit operations are popped and results are pushed.
 
-	\todo{Fix margins, maybe figure?}
-	\begin{minted}{agda}
+\begin{minted}{agda}
 data Diff : DList as -> DList bs -> ES as bs -> Set₁ where
   End : Diff [] [] []
   Nop : Diff xs ys e -> Diff xs ys (Nop ∷ e)
@@ -324,7 +323,8 @@ data Diff : DList as -> DList bs -> ES as bs -> Set₁ where
   Ins : (α : F as a) -> Diff xs (ys₁ +++ ys₂) e -> Diff xs (Node α ys₁ ∷ ys₂) (Ins α ∷ e)
   Upd : (α : F as a) (β : F bs a) -> Diff (xs₁ +++ xs₂) (ys₁ +++ ys₂) e 
         -> Diff (Node α xs₁ ∷ xs₂) (Node β ys₁ ∷ ys₂) (Upd α β ∷ e)
-\end{minted}
+\end{minted}	
+\todo{Fix margins, maybe figure?}
 
 	The base rule \texttt{End} states that the empty edit script 
 	transforms the empty source list in the empty target list.
@@ -365,38 +365,37 @@ mkDiff⟦_⟧ : Diff xs ys e -> ys ≡ ⟦ e ⟧
 	enabling case analysis. Lastly, using 
 	these equalities and exploiting rewriting techniques, it is possible
 	to restore the original and more involved statement.
-	See section \ref{sec:embedding} for an example.
+	See section \ref{subsec:Embedding} for an example.
 	
 	\subsection{Merge}	
 	\label{subsec:Merge}
 	The technique devised to merge edits is to apply the three-way
 	merge strategy on values. 
-	Informally speaking the three-way merge algorithm 	
-	compares correspondent sections of two files and of their common 
-	ancestor.
+	Informally the three-way merge algorithm compares correspondent sections 
+	of two files and of their common ancestor.
 	When the sections of the two files disagree, the version of the ancestor
 	is taken into account. If all of them are different a conflict is detected,
 	otherwise the version that changed from the common ancestor is chosen.
-	\todo{A figure here would maybe be more clear.}
+	\todo{A figure could be more direct here}
 	
 	To put this strategy on a formal footing a number of auxiliary definitions 
 	are needed. For example it is essential to define precisely the meaning 
 	of \emph{corresponding sections}. 
 	
 	\paragraph{Aligned}
-	\todo{Remark that we don't need a data type to encode aligned edits
-			 but this can be done assigning them the proper types (same source 
-			 value)}
 	Two edits are \emph{aligned} if they share the same source value.	
 	Two aligned edits contain at most three distinct values: 
 	one common source and two, 	possibly different, targets, which 
 	are treated as corresponding sections.
+	Since the type of an edits uniquely determines its value, enforcing
+	the alignment of two edits is as simple as setting the same source value 
+	in their types: no additional data type is required.
+	
 	Merging is an operation defined over two aligned edits:
 	either it fails raising a conflict, or succeeds producing an edit that 
 	comprises both. 
-
 	The following data type represents a successful merge.
-	\todo{Probably \texttt{⨅} is more appropriate than \texttt{⊔} (intersection vs union)}
+
 \begin{minted}{agda}	
 data _⊔_↧_ : v ~> a -> v ~> b -> v ~> c -> Set where
   Id₁ : (f : v ~> v) (g : v ~> w) -> f ⊔ g ↧ g
@@ -410,7 +409,7 @@ data _⊔_↧_ : v ~> a -> v ~> b -> v ~> c -> Set where
 	the merge is possible and determines the merged edit.
 	The rules \texttt{Id₁} and \texttt{Id₂} apply when 
 	respectively the first and the second transformation is identity.
-	Following the three-way merge algorithm, since the source node
+	Accordingly to the three-way merge algorithm, when the source node
 	is unchanged in one edit, the other edit is chosen.
 	The fact that merging is an \emph{idempotent} operation motivates the 
 	third rule \texttt{Idem}.
@@ -464,7 +463,6 @@ data _⊔_↥_ : (v ~> w) -> (v ~> z) -> Conflict v w z -> Set where
 	merges two aligned edits and either fails raising a conflict or succeeds 
 	producing the merged edit.
 
-\todo{\texttt{⊔} / \texttt{merge₃} ?}	
 \begin{minted}{agda}
 _⊔_ : (f : u ~> v) (g : u ~> w) -> (∃ λ c -> f ⊔ g ↥ c) ⊎ (∃ λ h -> f ⊔ g ↧ h)
 \end{minted}
@@ -542,7 +540,7 @@ data _⇓_ : e₁ ⋎ e₂ -> ES₃ xs -> Set where
 \end{minted}
 
 	The data type is indexed over the proof that the two input edit scripts are
-	\emph{aligned}. \todo{Explain why!}
+	\emph{aligned}.
 	The following type synonym is used instead for greater clarity:
 \begin{minted}{agda}
 Diff₃ : (e₁ : ES xs ys) (e₂ : ES xs zs) {{p : e₁ ⋎ e₂}} -> ES₃ xs -> Set
@@ -550,7 +548,7 @@ Diff₃ _ _ {{p}} e₃ = p ⇓ e₃
 \end{minted}
 	The type \texttt{Diff₃ e₁ e₂ e₃} is the proof that \texttt{e₃} is the edit script
 	produced by merging \texttt{e₁} and \texttt{e₂}. The alignment condition is 
-	left implicit using	 an instance argument.
+	left implicit using	 an instance argument.	
 	
 	\subsection{Merged$_3$}
 	\label{subsec:Merged3}
@@ -561,7 +559,7 @@ Diff₃ _ _ {{p}} e₃ = p ⇓ e₃
 	\paragraph{Definition}
 	A \texttt{Diff₃} is considered \emph{successful} if the merged edit script
 	does not contain any conflict and it is well-typed.
-	The scripts of type \texttt{ES₃ as} are well-typed with respect to
+	In fact a script of type \texttt{ES₃ as} is well-typed with respect to
 	the source list \texttt{as}, but may not be well-typed with respect to
 	the output list.
 	
@@ -582,7 +580,6 @@ data Merged₃ : ES xs ys -> ES xs zs -> ES xs ws -> Set where
 	The typing judgment \texttt{e ⇒ as} states that the edit script  \texttt{e} 
 	is well typed and produces a \texttt{DList as}.
 	The typing rules are straightforward:
-	\todo{Is this clear?}
 	
 	\begin{center}	
 		\mbox{	
@@ -620,12 +617,36 @@ Merged₃-nec : Diff₃ e₁ e₂ e₃' -> Merged₃ e₁ e₂ e₃ -> e₃' ⇒
 \end{minted}
 	
 	\paragraph{Discussion}
-	It is important to point out that, contrary to the conventional
-	\texttt{diff₃}, the merger described in this thesis can fail 
+	It is important to point out that, contrary to textual tools, 
+	the merger described in this thesis can fail 
 	not only with value related conflicts, but also producing
 	an ill-typed term.
-	\todo{Explain the problems related to a type-safe version of diff3}
-	
+	It is worth mentioning that the choice of types is non trivial and
+	already poses some interesting questions.
+	For example consider using a well-typed by construction edit script 
+	\texttt{ES} as third index in \texttt{Diff₃}:
+
+\begin{minted}{agda}
+data Diff₃ : ES as bs -> ES as cs -> ES as ? -> Set where
+\end{minted}	
+	What type list should be put instead of the question mark?
+	Clearly when \texttt{bs ≡ cs}, the list \texttt{bs} is a good choice.
+	However this assumption is too restrictive, because at some
+	point the edit scripts may have different output types, but still there might 
+	exist a most general type.
+	A possible alternative would be to choose an asymmetric signature,
+	so that the merged script always shares the output list with the first script.
+\begin{minted}{agda}
+data Diff₃ : ES as bs -> ES as cs -> ES as bs -> Set where
+\end{minted}	
+	Crucially also this choice is not satisfactory, because 
+	there could be merges (\texttt{Id₁}), that follow the second script and its 
+	types, which would clash with this choice.
+	As a result there is no optimal a priori choice of type that would not
+	be somehow restrictive. Therefore the output index is just removed from
+	the script and it is then typechecked to compute the most general type,
+	if one exists.	  
+		
 \section{Algorithms}
 This section presents the algorithms \texttt{diff} and \texttt{diff3}.
 Finally their correctness is proved showing that they satisfy the specifications
@@ -641,7 +662,7 @@ embodied respectively by \texttt{Diff} and \texttt{Diff₃}.
 	named \emph{target}, applying edit operations to their nodes.
 	Furthermore \texttt{diff} finds a \emph{minimal length} edit script, or
 	equivalently the \emph{longest common subsequence} of its inputs
-	\cite{Berg00, PierceDiff3}. \todo{Should I cite papers that just cite other sources I have already included? e.g. \cite{Lemp09} cites \cite{Berg00}}
+	\cite{Berg00, PierceDiff3}.
 	Conventionally edit scripts employ only delete, insert and copy operations,
 	however the model presented here slightly deviates, therefore an 
 	appropriate cost function is defined.
@@ -660,10 +681,7 @@ cost [] = 0
 	The function \texttt{distance} weights the difference between two nodes 
 	and it is expected to be a \emph{metric} on the set of nodes.
 
-	\paragraph{Metric}
-	\todo{should I include this ?}
-	\todo{What source can I cite about this?}
-	
+	\paragraph{Metric}	
 	A metric on a set $A$ is a function $d	 : (A \times A) \rightarrow \mathbb{R}$
 	such that $\forall x, y, z \in A$:
 	\begin{align*}
@@ -739,8 +757,7 @@ diff xs ys = sdiff {n = size xs + size ys} xs ys (≤-refl (size xs + size ys))
 	\emph{reflexive}, i.e.\ for any \texttt{n} it follows that \texttt{n ≤ n}.
 	The proof is by induction on \texttt{n}.	 
 
-	\paragraph{Relation Diff - diff} \todo{find good name}	
-	
+	\paragraph{Sufficient}
 	The lemma used to relate \texttt{Diff xs ys e} and \texttt{diff xs ys e} 
 	is the following:
 \begin{minted}{agda}	
@@ -779,10 +796,8 @@ Diff-suf : ∀ (xs : DList as) (ys : DList bs) -> Diff xs ys (diff xs ys)
 	rather than computational complexity, therefore this simpler version will
 	be used.
 
-	\subsection{Diff3 - Merge} \todo{Which name is better?}
-	\label{subsec:diff3}
-	\todo{comparison between GNU diff3 and diff3 (where?)}
-
+	\subsection{Diff$_3$}
+	\label{subsec:diff3}	
 	This section introduces the \texttt{diff₃} algorithm used to compare 
 	three objects, one of which is considered a previous common version
 	of the other two.
@@ -991,7 +1006,8 @@ conflictDeterministic (DelUpd f g α≠β) (DelUpd .f .g α≠β₁) = refl
 	in those functions.
 	The following preliminary definitions put this property on a formal footing.
 
-	\paragraph{Extension}	
+	\paragraph{Extension}
+	\label{par:Extension}
 	The statement \texttt{e₁ ⊴ e₂} means that \texttt{e₂} extends \texttt{e₁}
 	introducing a finite number of \texttt{Nop} edits.
 	
@@ -1047,7 +1063,7 @@ Diff⋎ : Diff as bs e₁ -> Diff as cs e₂ -> e₁ ~ e₂
 	If they are not aligned it means that one source
 	value is \texttt{⊥} and the other is \texttt{⟨α⟩}. In this case
 	the tail of the former is aligned to the latter, calling \texttt{Diff⋎} 
-	recursively and a \texttt{Nop} is introduced to align the insert 11edit.
+	recursively and a \texttt{Nop} is introduced to align the insert edit.
 	Note that the recursive call is valid, because an edit, whose
 	source value is \texttt{⊥}, does not consume the source object.
 
@@ -1057,7 +1073,7 @@ Diff⋎ : Diff as bs e₁ -> Diff as cs e₂ -> e₁ ~ e₂
 	\texttt{⊥}, the source is left untouched, otherwise the same node
 	is processed and popped from the same source.	
 
-	\paragraph{diff$_3$}
+	\paragraph{Diff$_3$}
 	Now it is possible to provide the conventional \texttt{diff₃} interface, in
 	which the second object is considered the old common version:
 \begin{minted}{agda}
@@ -1074,6 +1090,7 @@ diff₃ ys xs zs | Align _ _ p = merge₃ p
 	is invoked with the same \texttt{xs} as first argument.
 	
 \section{Formal Properties}
+\label{sec:FormalProp}
 In this section the formal model is enhanced studying some properties of the algorithms presented. As pointed out in \ref{subsec:spec}, the 
 properties will be proved using the specifications of the algorithms, rather
 than the algorithms themselves, so that the proofs will be simpler and 
@@ -1129,7 +1146,7 @@ _,_⊢_~>[_,_] e₁ e₂ {{p}} u v w = Map⋎ u v w p
 	respectively to \texttt{v} in \texttt{e₁} and to \texttt{w} in \texttt{e₂}.
 
 	The minimal conditions for the presence of conflicts are represented
-	by :
+	by:
 \begin{minted}{agda}
 data Failure (p : e₁ ⋎ e₂) : Conflict u v w -> Set where
   InsIns : (α : View as a) (β : View bs b) -> e₁ , e₂ ⊢ ⊥ ~>[ ⟨ α ⟩ , ⟨ β ⟩ ] ->
@@ -1332,7 +1349,6 @@ noTargetErase : Diff x y e -> α ∈ y -> ∃ (λ v -> e ⊢ₑ v ~> ⟨ α ⟩)
 	\texttt{Diff₃} is \emph{persistent},
 	i.e.\ it refuses to back out incompatible edits and instead triggers 
 	an appropriate conflict.
-	\todo{Have we already expained what is persistence?} 
 	Before stating more formally the theorem, some simple auxiliary 
 	data	types are introduced.
 
@@ -1555,8 +1571,7 @@ Diff₃-maximal (merge (Idem f) p) (.f ∷ q) = Idem f (Diff₃-maximal p q)
 	In particular note that, after pattern matching on the latter, \texttt{h} gets
 	always instantiated with either \texttt{f} or \texttt{g}.
 		
-	\todo{Better name?}
-	\subsection{Embedding}
+	\subsection{Structural Invariants}
 	\label{subsec:Embedding}
 	The last property discussed in this section concerns the ordering of 
 	the nodes. An edit script transforms lists of trees, traversing and processing 
@@ -1573,7 +1588,7 @@ Diff₃-maximal (merge (Idem f) p) (.f ∷ q) = Idem f (Diff₃-maximal p q)
 	
 	This section is structured as follows. Firstly the depth-first ordering
 	is formally defined and a similar relation is defined over
-	edit scripts. Secondly the equivalence \todo{Is it actual equivalence?}
+	edit scripts. Secondly the equivalence
 	between these relations is proved. Lastly the proof that the same 
 	property holds upon successful merges is presented.
 	
@@ -1780,7 +1795,7 @@ preserve-↦ p | source-⊏ {f = Upd α γ} {Upd β φ} x
 	order-preserving embedding:
 
 \begin{minted}{agda}
-data _↤_⊏_ (e : ES xs ys) (α : View as a) (β : View bs b) : Set₁ where
+data _↤_⊏_ (e : ES xs ys) (α : View as a) (β : View bs b) : Set where
   Ins₁ : e ⊢ₑ ⊥ ~> ⟨ α ⟩ -> e ↤ α ⊏ β
   Ins₂ : e ⊢ₑ ⊥ ~> ⟨ β ⟩ -> e ↤ α ⊏ β
   Map₂ : e ⊢ₑ ⟨ γ ⟩ ~> ⟨ α ⟩ -> e ⊢ₑ ⟨ φ ⟩ ~> ⟨ β ⟩ -> ⟪ e ⟫ ⊢ γ ⊏ φ -> e ↤ α ⊏ β
@@ -1876,7 +1891,7 @@ Merged₃↦ {e₃ = e₃} d₁ d₂ d₃ p rewrite
 	that \texttt{⟪ e₁ ⟫ ≡ ⟪ e₃ ⟫}.
 	
 \section{Conclusion}
-The main contributions of this work are:
+The main contributions of this thesis are:
 \begin{itemize}
 	\item A data type generic \texttt{diff} algorithm for structured
 			data that employs insert, delete, update edits and \emph{global} 
@@ -1894,13 +1909,233 @@ the Agda proof assistant.
 	\item Some \textbf{safety properties}, which ensure the basic correctness 
 	of the algorithms, have been established and proved.
 	\item The \texttt{diff3} algorithm is \textbf{maximal}.
-	\item The algorithms are proved to be \textbf{order-preserving}.
+	\item The algorithms preserve some well-defined \textbf{structural invariants}.
 \end{itemize}
 
 	\subsection{Related Work}
-	\todo{Some data types should be handled differently e.g. sets and so on... 
-	partially close to exploiting schemas in Data Sync}
-	\todo{No Identifier or Labels}		
+	\todo{Use different font for tools' name}
+	The great number of publications shows that there is an increased 
+	interest in the topics of change detection and merge.
+	There are several tools that target structured data, with a particular
+	focus on the XML format, such as 
+	LaDiff in \cite{Chawathe96}, MH-Diff in \cite{Chawathe97}, 3DM in 
+	\cite{Lind01, Lind04, Lind05}.
+	Peters gives a comprehensive survey of them and others in 
+	\cite{PetersSurvey}.
+	Synchronizers represent another closely related field.
+	Relevant examples include Unison, a file synchronizer \cite{Pierce98, 
+	UnisonSpec}; Harmony, a synchronizer for 
+	heterogeneous data	\cite{HarmonyOverview,Pierce07} by Pierce et al.\ and
+	\cite{Ramsey01}.
+	Lastly there are few mergers tailored for software artifacts, such
+	as \cite{Westfechtel91, Apel11} and those surveyed in \cite{Mens02}.
+
+	\paragraph{Ordered and Unordered}
+	The merger discussed in this thesis is different from all of these, because,
+	contrary to XML and file-systems, the tree-structured objects handled
+	are actually data types, therefore they are \emph{strongly typed} entities.
+	Being typed, the trees are inherently \emph{ordered}, while XML trees
+	could also be unordered. 
+	However there is a connection between types and schemas, 
+	which are essential for synchronization in \cite{Pierce07}.
+	Indeed the synchronizer proposed by Foster et al.\ preserves structural 
+	invariants,  exploiting schemas to identify specific conflicts, 
+	named \emph{schema domain conflicts}. Similarly in this work a
+	merge is considered \emph{successful} only if it is well-typed 
+	\ref{subsec:Merged3}. 
+	Chawathe et al.\ in \cite{Chawathe96} assume that nodes have unique 
+	identifiers, which	greatly simplifies the change detection phase.
+	However this assumption is too simplistic: data format do not usually mark
+	their content and even XML trees may or may not have  
+	identifiers in their nodes. The algorithms discussed in this thesis do
+	not rely on unique identifiers, even though they could be adapted 
+	straightforwardly to take advantage of them.
+	
+	\paragraph{Alignment and Data Structures}
+	The alignment strategy used to match parts in two versions plays
+	a central role in the quality of merges.
+
+	Khanna et al.\ explain in \cite{PierceDiff3} that GNU diff3 aligns lines
+	computing \emph{stable} and \emph{unstable} \emph{chunks} from the 
+	longest common subsequences between the 	archive and the two versions, 
+	obtained by the \texttt{diff} subroutine.
+	Overlapping equal lines are matched and fused in stable chunks, leaving 
+	possibly conflicting chunks between them.
+	This technique works well in practice because (in software artifacts) lines
+	are mostly unique and it is restricted to a simple, flat, linear structure.
+	Nevertheless this approach would most likely give poor results for trees. 
+	Firstly chunks intuitively align flat data like lists,
+	but they would oddly flatten vertical, structured data like trees.
+	Secondly the implicit assumption that basic values are mostly
+	unique might not hold for certain data formats and therefore it would 
+	misalign their content.
+	Therefore the diff discussed in this thesis strives to match single nodes,
+	computing an embedding of the archive tree into the other; furthermore
+	it respects their structured nature preserving the relative order of the 
+	nodes, in 	the depth first order traversal, as shown in section 
+	\ref{subsec:Embedding}.
+	This is achieved generalizing the copy edit to update and retaining the
+	intuitive three-way merge technique for aligned edits.
+	The merger presented in this thesis employs a \emph{global} strategy
+	that produces an optimal alignment, minimizing an appropriate cost model.
+	Conversely Foster et al.\ in \cite{Pierce07} choose a \emph{local} strategy,
+	that associates subtrees by name.
+	In \cite{Chawathe96} Chawathe and Molina reduce the change detection
+	problem to a problem of computing a minimum-cost edge cover of 
+	a bipartite graph. They remark that for structured data this problem
+	is NP-hard, therefore they develop an heuristic that consists
+	in pruning the graph induced by two trees following a set of pruning
+	rules and then 	further discard edges to find a \emph{minimal} edge cover.
+	From the edge cover an edit script can be mechanically derived, however
+	they do not discuss changes merge in their work.
+		
+	\paragraph{Data Structures}
+	Data structures are implemented as algebraic data types, that 
+	have always the form of structured ordered trees
+	regardless of the fact that may represent unordered collections such as 	
+	sets and records. Since the alignment strategy is strongly influenced by 
+	the actual shape of the trees, these class of objects will be 
+	badly matched and will be poorly merged, probably raising 
+	unnecessary conflicts.
+	Foster et al.\ in \cite{Pierce07}, remark to handle sets and records 
+	correctly, however this is due to the fact that their algorithm is 
+	schema-driven and internally handles schemas keys as sets. 
+	On the other hand it performs poorly for lists, 
+	because it naively aligns lists by \emph{absolute} positions, due to the 
+	local alignment strategy used. 
+	For example merging $o$ \texttt{= [Liz; Jo]}, $a$ \texttt{= [Jo]} and $b$ 
+	\texttt{= [Liz; Joanna]} surprisingly produces \texttt{[Jo; Joanna]}, instead
+	of \texttt{[Joanna]}, 
+	which is correctly reported by the merger presented here.
+	
+	\paragraph{Edit operations}
+	The set of edits considered in the change detection phase plays
+	a fundamental role when merging changes.
+	The edits generated by GNU diff include only insert, delete and copy, 
+	which in this thesis has been broadened to update as explained previously.
+	Lindholm's 3dm \cite{Lind04} includes also the edit move, like Chawathe in 
+	\cite{Chawathe96, Chawathe97}, which additionally introduces also the 
+	glue edit that fuses two trees.
+	In \cite{Lind04} however copy consists of copying multiple nodes.
+	Since node sharing is not explicit this operation could easily produce 
+	surprising results, because it could match unrelated nodes. In XML
+	this is mitigated since large sections of text are likely unique, but
+	in our context it is in general an invalid assumption.
+	Move is quite a controversial edit.
+	It can be expressed in the model presented in this thesis by delete 
+	and insert, just like in \cite{Ramsey01}, however this sequence 
+	of edits might easily clash with possible updates in the other version,
+	raising unnecessary conflicts.
+	Crucially tree rearrangements	might not be recognized as a natural
+	edit in certain data formats, but they could for others. 
+	For example in a table filled with numbers it would look odd to describe
+	changes in few numbers using moves, but it is perfectly reasonable
+	to do it for rows shuffling. 
+	In \cite{Lind04}, \emph{contexts}, made of a node's parent, 
+	predecessor	and successor, are taken into account to improve the precision
+	in the change detection phase with respect to the move edit, 
+	however they also remark that there are few exceptions.
+	It is challenging to craft an alignment strategy that includes the move edit,
+	while keeping its semantics concise and clear, especially in presence
+	of multiple weight parameters, such as in \cite{Chawathe97}.
+	Furthermore mode edits would weaken the guarantees about the
+	structural invariants described in \ref{subsec:Embedding}.
+	Ramsey et al.\ remark in \cite{Ramsey01} that \emph{move} operations 
+	complicate reasoning, but they suggest to expose it to the user and 
+	translate	it using delete and insert for reasons of performance, retention of 
+	metadata 	and usability, however it is questionable whether this translation
+	preserves the original meaning.
+	
+	
+	\paragraph{Formal Model}
+	The proliferation of commercial and research file synchronizers and
+	mergers have yielded the need for a formal study of their semantics.
+	Unison \cite{UnisonSpec} is an example of a file synchronizer 
+	automacally derived	 from a formal model \cite{Pierce98}.
+	Similarly Harmony is a schema-based
+	synchronization framework \cite{HarmonyOverview}, whose formal
+	properties have been studied extensively in \cite{Pierce07} and have
+	inspired the analysis conducted in section \ref{sec:FormalProp}.
+	Ramsey and Csirmaz in \cite{Ramsey01} proposes an algebraic approach to 
+	file synchronization. Differently from this thesis, \cite{Pierce98} and 
+	\cite{Pierce07}, their model is operation-based, rather than state-based,
+	which enables an automatic conflict resolution phase named 
+	\emph{reconcilation}.
+	Nevertheless the sequence of operations performed at each replica
+	is computed in the update detection phase at each replica 
+	comparing the current version with the archive, i.e. the last synchronized 
+	version. 
+	It is worth to point out that this phase is greatly simplified by the presence
+	of metadata in filesystems, which helps by disambiguating during 
+	the alignment phase and facilitates the change detection phase.
+	They propose a large proof system 	for a simple filesystem algebra, that
+	is proved to be sound and complete for it.
+	The model is based on a relation between sequences
+	of commands that ensures that a sequence safely approximates another
+	and conflictless synchronization is possible if there is a sequence
+	at least as good as both.
+	Even though the algebra is intuitive, the proof system is quite large and
+	far from concise, to the point that it requires automatic techniques to
+	prove it sound.
+	They claim that reasoning with algebraic laws is more convenient that 
+	reasoning directly with the mathematical formulation of the filesystem, 
+	however it looks like this approach would unlikely scale, since 
+	a simple model made of five operations requires about fifty laws to
+	be equivalently described algebraically.
+	The combinatorical explosion is due to the fact that laws relate
+	the effect of sequencing two operations. 	
+	The algebraic approach presented in \cite{Ramsey01} is interesting, but
+	it relies too much in a clear detection of the operations performed, which 
+	for structured data is much more blurry. 
+	The 3dm tool presented in \cite{Lind04} does not include a 
+	mechanically verified model and moreover the general merge rules 
+	have been derived analyzing the expected result of use cases.
+	His change model is based on \emph{content} and \emph{structural 
+	change}. The changes in each version are combined into a change set
+	and can be merged only if the set is \emph{consistent}, i.e. 
+	unambiguously determine at most one parent, predecessor and successor
+	for each node.
+	Conflicts are divided in core conflicts and optional conflicts and are 
+	overall consistent with those listed in \ref{subsec:Merge}, except
+	for the delete/edit conflict, which is optional, whereas in this
+	thesis is not. It is not explained under which circumstances these
+	changes could be considered compatible.
+	The lack of a formal model raises some doubts about the properties
+	claimed for the merge.
+	First of all the merge is considered symmetric, but later
+	it is admitted that appends of nodes originated from different
+	trees may be accepted in either order. This kind of implementation
+	details are actually relevant from the user point of view and have so 
+	far fostered the need for formal, unambiguous models. In this thesis
+	inserts compete for matching positions and may trigger conflicts
+	if incompatible.
+	Secondly the fourth merge rule explicitly requires that changes in either
+	versions to be included in the merged tree, however the fact
+	that updates in deleted trees are optionally considered conflicts contradicts
+	this rule and weaken the property about preservation of edits.
+	
+	% Structural invariants	
+	
+	% Reliable with respect to edits with source the archive tree (module good 
+	% matching, which is assumed because of the global alignment)
+	% More tentative the alignment for inserts: at the moment it relies on
+	% the same traversal. Probably context information could be exploited
+	% to better align inserts.
+
+	
+% Not sure ...	
+%	Synchronization is slightly different from merging, as intended in this
+%	thesis and in the XML works mentioned previously.
+%	Synchronizers can be classified as \emph{persistent} or \emph{convergent}, 
+%	depending on the strategy used to synchronize independent replicas.
+%	Convergency requires that the two replicas must be equal, after
+%	synchronization
+%	Three-way mergers are given two current versions of an object and an 
+%	archive version and try to combine the changes that occur from the 
+%	common version to the other two, to produce a single object that
+%	merges both. Synchronizers instead work with independent replicas, which
+%	are updated propagating the non-conflicting changes	
+	
 	
 	\subsection{Future Work}	
 	This thesis raises several research questions, which ought to be 
@@ -1934,11 +2169,40 @@ the Agda proof assistant.
 	From the user point of view, this relation is certainly clearer and likely 
 	more meaningful than the previous one and moreover it fits nicely
 	with the idea of preserving the structure of the objects.
-	It is worth pointing out that the edit script data type enforces
-	or not these relations, hence its definition firstly needs to be 
+	It is worth pointing out that the edit script data type is responsible
+	for enforcing these relations, hence its definition firstly needs to be 
 	adjusted accordingly, and not, as one might expect, the \texttt{diff}
 	algorithm.
 	
-	\todo{Generalization to diffn - Is this actually interesting?}
+	\paragraph{Hook for data structures}
+	As discussed previously tree matching, diffing and merging is
+	inappropriate for algebraic data types that represent unordered data 
+	structures. The model presented here could be easily adjusted
+	to allow the definition of specific diffing and merging semantics 
+	for certain class of data types.
 	
+	\paragraph{Move edit and Contexts}	
+	It would be interesting to optionally extend the model to include move
+	edits, since rearrangements of nodes is common for certain formats
+	such as XML and HTML. As \cite{Ramsey01} remarks this would 
+	likely complicate the formal model and its properties, but it 
+	would certainly improve the user experience and the merging
+	capabilities.
+	The idea of node \emph{contexts} described in \cite{Lind01} ought
+	to be investigated further especially in presence of a move edit. 
+	It particularly fits nicely in this setting, since
+	the types of the parent, ancestor and successor nodes are strongly
+	related and could be exploited to align data correctly, producing 
+	well-typed trees.
+	Contexts could also be effectively employed in the second part of the
+	alignment phase, in which inserts are aligned with either other inserts,
+	or purposely added no-operations.
+	This naive approach could have a negative impact, 
+	in presence of many inserts because too simplistic. On the other contexts
+	could guide this stage finding valid matchings, based on their context. 
+		
+	% TODO remove when compiling the whole thesis	
+	\bibliographystyle{plain}
+ 	\bibliography{svc}
+		
 \end{document}
