@@ -1,0 +1,680 @@
+\documentclass[../Thesis.tex]{subfiles}
+
+\begin{document}
+
+\chapter{Haskell Implementation}
+This chapter presents the Haskell implementation of the \texttt{diff}
+and \texttt{diff₃} algorithms discussed in \ref{chapter:FormalModel}.
+
+	\subsection*{Motivation}
+	Even though Agda's type system is sophisticated, it is still a research 
+	prototype and its compiler is still rather immature and does not produce
+	efficient code. Consequently a more mature programming language has been 
+	chosen, in order to provide a practical implementation of
+	the algorithms studied in this thesis.
+	Haskell, a general-purpose, strongly typed, purely functional 
+	programming language \cite{Hudak07ahistory, Marlow_haskell2010} 
+	has been used for this purpose.
+	Even though full-fledged dependent types are not available, the 
+	Glasgow Haskell Compiler (GHC) \cite{GHC}, the current state-of-the-art, 
+	optimizing compiler for Haskell, provides several extensions to the type
+	system, which allow to partially simulate dependently typed programming.
+	\todo{Mention which version GHC was used}
+	The implementation discussed in this chapter 
+	relies heavily on Generalized Algebraic Data Types 
+	(GADT) \cite{JonWasWei04,PeytonJonesSUT,SchGADT} and Type Families
+	\cite{ChakATC,ChakATS,SchrTCO,SchrTOT,Kiselyov09funwith}.
+	In the following their limitations with respect to the formal model will be 
+	remarked.
+	Furthermore Type Classes provide a convenient way to make the 
+	implementation modular.
+
+	\todo{Different font for Type Class, Type Family and GADT?}
+	
+	\section{Basics}
+	This section presents the basic data types and type classes used 
+	in the algorithms section.
+
+	\subsection{Type Manipulation}
+
+	\paragraph{Proxy}
+	Programs that inspect and manipulate types need specific data types
+	and functions, whose main role is to fix types and 
+	ultimately satisfy the type checker, rather than computing values.
+	For example the data type \texttt{Proxy a} is a poly-kinded proxy type that 
+	has only one non-bottom value, namely \texttt{Proxy}, and it
+	is usually used to specify types in signatures.
+	
+\begin{minted}	{haskell}
+data Proxy t = Proxy
+\end{minted}
+
+	This data type will be used quite often in the rest of the chapter.
+	
+	\paragraph{Type Equality}
+	In the formal model a decidable type equality binary operator was 
+	employed in the \texttt{diff} algorithm and to type check
+	merged edit script. This kind of function is usually not available 
+	in strongly typed	languages like Haskell, because type are erased 
+	at run time. However, when the set of types involved is limited to a
+	finite set known at compile time, it is possible to implement such
+	an operator for them.
+
+	The type \texttt{Elem a xs} denotes that the type \texttt{a}
+	belongs to the list of types\texttt{xs}.
+	Its definition closely resembles the membership 
+	data types discussed in the formal model:
+	
+\begin{minted}{haskell}
+data Elem a as where
+  Here :: Elem a (a ': as)
+  There :: Elem a as -> Elem a (b ': as)
+\end{minted}
+
+	Assuming that \texttt{as} does not contain duplicates it is possible
+	to test type equality for types that belong to it:
+\begin{minted}{haskell}
+cmpTy :: Elem a as -> Elem b as -> Maybe (a :~: b)
+cmpTy Here Here = Just Refl
+cmpTy (There i) (There j) = cmp i j
+cmpTy _ _ = Nothing
+\end{minted}	
+
+	The two arguments act as indexes in the \emph{same}
+	list \texttt{as}. If they happen to point to the same element in the
+	list, then equality follows, otherwise the two types are different.
+
+	\subsection{Universe}
+	\label{subsec:Universe}
+	In the formal model the presence of a certain type 
+	\texttt{F : List Set -> Set -> Set} and some operations to manipulate
+	them were assumed using a postulate. In the actual implementation
+	a concrete type with this kind must be defined for the family
+	of mutually recursive data types at hand. Nevertheless, 
+	Haskell's type class system support higher kinds, hence it is easy to
+	abstract over them in the implementation using a type class.
+	
+\begin{minted}{haskell}
+class Family f where
+  type TypesOf f :: [ * ]
+  (=?=) :: f as a -> f bs b -> Maybe (a :~: b , as :~: bs) 
+  argsTy :: f as a -> TList f as
+  outputTy :: f as a -> TList f '[ a ]
+  string :: f as a -> String
+\end{minted}
+
+	The type parameter \texttt{f} has kind \texttt{[ * ] -> * -> *}, in
+	Haskell kind signatures, where \texttt{*} corresponds to \texttt{Set} in
+	Agda and \texttt{[ * ]} to \texttt{List Set}. 
+	A value of type \texttt{f xs a} represents a concrete constructor
+	of a data type of type \texttt{a}, that takes arguments of types determined 
+	by \texttt{as}.
+	The associated type \texttt{TypesOf f} is a list containing all the types
+	that appear in the family of mutually recursive data types embodied by
+	\texttt{f}. The only important requirement needed to ensure consistency
+	is that this list represents a set, therefore with no duplicates. Furthermore
+	the order in which the types are listed is irrelevant.
+	The first method \texttt{=?=} tests for equality between nodes, analogously
+	to the operator described in the formal model, except with a less 
+	refined signature.
+	The methods \texttt{argsTy} and \texttt{outputTy} reify respectively the
+	arguments and output types of a constructor and are needed for
+	type checking merged edit scripts. This topic
+	will be explained in more details in the following.
+	Lastly the method \texttt{string} returns a string representation of a
+	constructor and it is used exclusively for to interact with the user.
+	
+	The second type class defined relates single types and a family:
+\begin{minted}{haskell}
+class (Family f, ShowType a) => a :<: f where
+  getElem :: Proxy f -> Elem a (TypesOf f)
+  toDTree :: a -> DTree f a 
+  fromDTree :: DTree f a -> a
+\end{minted}
+	
+	The constraints \texttt{a :<: f} denotes that the type \texttt{a} is part
+	of the family \texttt{f}.
+	As such the first method ensures that \texttt{a} is among the types
+	involved in the family \texttt{f}.
+	The methods \texttt{toDTree} and \texttt{fromDTree} are used to convert
+	the user defined data types to the well-typed generic tree representation
+	and the other way around.
+	The class \texttt{ShowType} provides the method \texttt{showTy}, which
+	returns a string representation of the type \texttt{a} and it is
+	used exclusively for error reporting when type checking. 
+
+\begin{minted}{haskell}
+class ShowType a where
+  showTy :: Proxy a -> String
+\end{minted}
+	
+	\subsection{Typed List}
+	The algorithms manipulate several different kind of typed list,
+	that are all small variation of the heterogeneous list \texttt{HList} 
+	introduced in \ref{chapter:FormatRepresentation} \todo{Specific section 
+	about HList}. This section defines them and explains their role.
+	
+	\paragraph{TList}
+	The type \texttt{TList f as} represents a list of types \texttt{as} each 
+	of them belonging to the family \texttt{f}.
+
+\begin{minted}{haskell}
+data TList f as where
+  TNil :: TList f '[]
+  TCons :: (a :<: f) => Proxy a -> TList f as -> TList f (a ': as)
+\end{minted}
+
+	The presence of the proxy is to conveniently access the type later on.
+	The methods \texttt{argsTy} and \texttt{outputTy} of the type class
+	\texttt{Family f} discussed previously requires to produce \texttt{TList}
+	for each argument and output type, therefore automatically requiring
+	an instance of \texttt{a :<: f} for any type directly or indirectly mentioned. 
+	Moreover	these instances ensure also their presence in \texttt{TypesOf f},
+	needed to fulfill the \texttt{getElem} method.
+	
+	An appropriate \texttt{TList} can be automatically built for lists of types 
+	known at compile time, in a similar manner to what happens for
+	\texttt{SList} with \texttt{KnownSList}, as described in \ref{?}.
+	\todo{Specific section about SList.}
+	
+\begin{minted}{haskell}
+class KnownTList f as where
+  tlist :: TList f as
+\end{minted}
+	The only two generic instances are:
+\begin{minted}{haskell}
+instance KnownTList f '[] where
+  tlist = TNil
+
+instance (a :<: f, KnownTList f as) => KnownTList f (a ': as) where
+  tlist = TCons Proxy tlist
+\end{minted}
+
+	The technique exploits the automatic instance resolution that happens
+	while type-checking, to progressively build the desired \texttt{TList}.
+	In the second instance the type checker infer the expected type 
+	\texttt{Proxy a} for \texttt{Proxy} and the recursive call to \texttt{tlist} is 
+	justified by the constraint  \texttt{KnownTList f as} in the context. 
+	The constraint \texttt{a :<: f} is 	instead required by	the constructor 
+	\texttt{TCons}.
+		
+	It is also entirely straightforward to provide an instance for the 
+	type	class \texttt{Reify}, which converts a \texttt{TList f as} 
+	into the corresponding singleton type 
+	\texttt{SList as}, introduced in \ref{slist section}. 
+	\todo{Add section specific to SList}
+
+\begin{minted}{haskell}
+instance Reify (TList f) where
+  toSList TNil = SNil
+  toSList (TCons _ t) = SCons (toSList t)
+\end{minted}
+	
+	\paragraph{DList}
+	The type \texttt{DList f as} represents a list of \texttt{DTree} of types
+	determined by 	\texttt{as}. Their definition is entirely similar to
+	the one given in the formal model, except that they are both parametric
+	in the family \texttt{f}. Similarly to \texttt{TList}, each type contained
+	in the list is forced to belong to \texttt{f}, using the constraint 
+	\texttt{a :<: f}.
+	
+\begin{minted}{haskell}
+data DList f xs where
+  DNil :: DList f '[]
+  DCons :: (a :<: f) => DTree f a -> DList f as -> DList f (a ': as)
+
+data DTree f a where
+  Node :: f as a -> DList f as -> DTree f a
+\end{minted}
+	
+	The data type \texttt{DTree f a} is a type safe representation of
+	an algebraic data type of type \texttt{a}.
+	
+	\section{Diff}
+	This section describes the implementation of the 
+	\texttt{diff} algorithm presented in 	section \ref{subsec:Diff} 
+	and the related data types. 
+	
+	\subsection{Edit Script}
+	The edit script data type described in \ref{subsec:EditScript} consists in
+	a well-typed list of edits of type \texttt{u \textasciitilde> v}, each of them
+	encoding the change made with their source and target values.
+	That definition is particularly elegant because it isolates the actual set of
+	edits from the conditions required to stack them in a type-safe manner,
+	which are embedded in the cons constructor signature and consists
+	in expecting the input types of the edit to match the prefix of the
+	type lists of the rest of the edit script.
+	Remarkably these rules are the same regardless of the concrete edit 
+	at hand, which makes it possible to separate the two data types.
+	This modular representation is unfortunately not possible in the current
+	version of GHC for two reasons. Firstly, as Yorgey et. al explain in 
+	\cite{Yorgey12}, GADTs are unpromotable,  i.e. it is not possible index
+	a GADT by another GADT, which prevents the edit data type
+	to be indexed by values.
+	This feature would require kind equality and kind coercions, which would 
+	dramatically complicate type equivalence.
+	Secondly not even indexing edits directly by their input and output type lists
+	would completely solve the issue:
+	
+\begin{minted}{haskell}
+data Edit f as bs cs ds where
+  EIns :: f as a -> Edit f [] [] as [ a ] 
+  EDel :: f as a -> Edit f as [ a ] [] [] 
+  EUpd :: f as a -> f bs a -> Edit f as [ a ] bs [ a ] 
+
+data Edits f xs ys where
+  ENil :: Edits f [] [] 
+  ECons :: Edit f as bs cs ds -> Edits f (as :++: xs) (cs :++: ys) -> Edits f (bs :++: xs) (ds :++: ys) 
+\end{minted}
+	
+	The definition of \texttt{Edits} is rejected because the type parameters
+	\texttt{xs} and \texttt{ys} are ambiguous. The problem is that 
+	in general it is not possible to invert type families, therefore
+	the type checker refuses to find suitable parameters \texttt{xs} and 
+	\texttt{ys}, to solve unification problems such as \texttt{zs = as :++: xs},
+	for some given \texttt{zs}. This issue could be resolved including
+	two singleton lists \texttt{SList xs} and \texttt{SList ys} to \texttt{ECons},
+	which would however slightly obfuscate the code.
+	Note that this is not an issue in Agda data types because parameters
+	must all be declared either as implicit or explicit arguments and 
+	hence are always available, which is the essence of the fix proposed
+	using singleton lists.	
+	
+	To sidestep all these limitations the edit script data type have been defined 
+	similarly to that of \cite{Lemp09}, collapsing edit and edit script into
+	a single data type, introducing specific constructors for
+	each kind of edit. Note that this definition completely preserves type safety,
+	but it is only more repetitive.
+
+\todo{Margin fix}
+\begin{minted}{haskell}
+data ES f xs ys where
+  Ins :: (a :<: f) => f xs a -> ES f ys (xs :++: zs) -> ES f ys (a ': zs)
+  Del :: (a :<: f) => f xs a -> ES f (xs :++: ys) zs -> ES f (a ': ys) zs
+  Upd :: (a :<: f) => f xs a -> f ys a -> ES f (xs :++: zs) (ys :++: ws) -> ES f (a ': zs) (a ': ws)
+  End :: ES f [] []
+\end{minted}
+
+	The edit script data type is also parametric in the family \texttt{f} 
+	and likewise enforces that all the types involved belong to \texttt{f},
+	with constraints like \texttt{a :<: f}. 
+
+	\subsection{Memoization}
+	The \texttt{diff} algorithm described in \ref{subsec:AlgoDiff} is inefficient 
+	because same subcomputations are recomputed multiple times.
+	An equivalent, but more efficient, version can be achieved using 
+	memoization, i.e. storing the result of subcomputations in a lookup-table,
+	encoded by the following data type:
+	
+\begin{minted}{haskell}	
+data EST f xs ys where
+  NN :: ES f [] [] -> EST f [] []
+  NC :: (b :<: f) => f xs b -> ES f [] (b : ys) 
+     -> EST f [] (xs :++: ys) 
+     -> EST f [] (b : ys)
+  CN :: (a :<: f) => f xs a -> ES f (a : ys) [] 
+     -> EST f (xs :++: ys) []
+     -> EST f (a : ys) []
+  CC :: (a :<: f, b :<: f) => f xs a -> f ys b 
+     -> ES f (a : zs) (b ': ws) 
+     -> EST f (a : zs) (ys :++: ws)
+     -> EST f (xs :++: zs) (b : ws)
+     -> EST f (xs :++: zs) (ys :++: ws)
+     -> EST f (a : zs) (b : ws)
+\end{minted}
+	
+	A table of type \texttt{EST f xs ys} contains an edit script
+	of minimal cost of type \texttt{ES f xs ys}, and the subtables
+	corresponding to its tail, obtained by placing either an insert, or
+	a delete, or an update edit.
+	The table is partitioned in four groups depending on the fact
+	that the source and target list is empty or not.
+	Specifically \texttt{NN} contains the only edit script in which both
+	of them are empty, in \texttt{CN} and \texttt{NC} the target and source
+	lists are respectively empty and hence contain only one subtable,
+	lastly in \texttt{CC} the lists are both non-empty.
+	The edit script contained in a table can be easily retrieved:
+	
+\begin{minted}{haskell}
+getDiff :: EST f xs ys -> ES f xs ys
+getDiff (NN e) = e
+getDiff (NC _ e _) = e
+getDiff (CN _ e _) = e
+getDiff (CC _ _ e _ _ _) = e
+\end{minted}
+
+	The function \texttt{diffT} builds a memoization table recursively:
+
+\begin{minted}{haskell}
+diffT :: (Family f, Metric f) => DList f xs -> DList f ys -> EST f xs ys
+diffT DNil DNil = NN End
+diffT (DCons (Node a as) xs) DNil = CN a (Del a (getDiff d)) d 
+  where d = diffT (dappend as xs) DNil
+diffT DNil (DCons (Node b bs) ys) = NC b (Ins b (getDiff i)) i
+  where i = diffT DNil (dappend bs ys)
+diffT (DCons (Node a as) xs) (DCons (Node b bs) ys) = CC a b (best a b i d u) i d u
+  where u = diffT (dappend as xs) (dappend bs ys)
+          i = extendI a xs u
+          d = extendD b ys u
+\end{minted}
+ 
+	The only interesting case is the last one, in which 
+	both the input lists are non-empty.
+	Firstly note there is only \emph{one} recursive call to \texttt{diffT}.
+	The recursion is well-founded because both the input lists are consumed 
+	removing the nodes \texttt{a} and \texttt{b}.
+	From the table so obtained, the alternative tables in which 
+	\texttt{a} is inserted or \texttt{b} is deleted are obtained using the functions
+	\texttt{extendI} and \texttt{extendD}.
+	Among these three options, the script with minimal cost is chosen
+	by the function \texttt{best}.
+	
+\begin{minted}{haskell}
+best :: (Metric f, a :<: f, b :<: f)
+     => f as a -> f bs b
+     -> EST f (a : xs) (bs :++: ys)
+     -> EST f (as :++: xs) (b : ys)
+     -> EST f (as :++: xs) (bs :++: ys)
+     -> ES f (a : xs) (b : ys)
+best f g i d c = 
+  case decEq f g of
+    Just Refl -> Upd f g (getDiff c) & a & b
+    Nothing -> a & b
+  where a = Del f (getDiff d)
+          b = Ins g (getDiff i)
+\end{minted}
+	
+	Both nodes can be consumed by an update only if they have the 
+	same type, which is tested by the \texttt{decEq} function.
+ 	The other alternatives, which are always possible, consists of deleting
+ 	the first node or inserting the second. Note that the source and target
+ 	lists of the three tables are the same of their edit script, hence the scripts
+ 	produced are all well-typed.
+
+	The binary operator \texttt{\&} selects the edit script with minimal cost:
+
+\begin{minted}{haskell}
+(&) :: Metric f => ES f xs ys -> ES f xs ys -> ES f xs ys
+x & y = if cost x <= cost y then x else y
+\end{minted}
+
+	The function \texttt{cost} computes the score of an edit script,
+	according to the cost model described in \ref{subsec:AlgoDiff}.
+
+\begin{minted}{haskell}
+cost :: Metric f => ES f xs ys -> Double	
+cost End = 0
+cost (Ins x xs) = 1 + cost xs
+cost (Del x xs) = 1 + cost xs
+cost (Upd f g xs) = distance f g + cost xs
+\end{minted}
+
+	Of course the \texttt{cost} function inefficiently recomputes the cost of an 
+	edit script multiple times.
+	It is entirely straightforward to adjust the edit script data type or the 
+	memoization table to store also the score of each edit script.
+	I have decided to omit this optimization from the presentation in order
+	to keep it clear	and focused on the type related issues, which are 
+	more interesting and challenging.
+	
+	Lastly the type class \texttt{Metric f} provides an hook to the final user
+	for comparing nodes, assigning a numeric distance between them.
+\begin{minted}{haskell}
+class Metric f where
+  distance :: f xs a -> f ys a -> Double
+\end{minted}
+	Any \texttt{Metric} instance is expected to satisfy the axioms listed 
+	in \ref{par:Metric}.	
+	
+	The function \texttt{extendI} use an auxiliary intermediate 
+	data type \texttt{DES} used to existentially quantify the portion of the table
+	that needs to be extended.
+	
+\begin{minted}{haskell}
+data DES f a xs ys where
+  DES :: f zs a -> ES f (a : xs) ys -> EST f (zs :++: xs) ys -> DES f a xs ys
+\end{minted}
+
+	If the source list is non-empty, then it is possible to produce such a
+	data type.
+
+\begin{minted}{haskell}
+extractD :: EST f (a : xs) ys -> DES f a xs ys
+extractD (CN g e i) = DES g e i
+extractD (CC f g e _ i _) = DES f e i
+\end{minted}
+
+	Note that the type \texttt{a : xs} in the target list restrict the possible
+	values of \texttt{EST} only to those listed.
+
+	Finally \texttt{extendI} is defined as follows:
+	
+\begin{minted}{haskell}	
+extendI :: (Metric f, a :<: f)
+        => f xs a -> DList f ys -> EST f zs (xs :++: ys) -> EST f zs (a ': ys)
+extendI f _ i@(NN e) = NC f (Ins f e) i
+extendI f _ i@(NC _ e _) = NC f (Ins f e) i
+extendI f _ i@(CN _ _ _) =
+  case extractD i of
+    DES g e c -> CC g f (best g f i d c) i d c
+      where d = extendI f undefined c
+extendI f _ i@(CC _ _ e _ _ _) =
+  case extractD i of
+    DES g e c -> CC g f (best g f i d c) i d c
+      where d = extendD f undefined c
+\end{minted}
+
+	First of all the second argument of type \texttt{DList f ys} is never inspected
+	and it is introduced only to avoid the ambiguity problem discussed 
+	previously.
+	Extending the target list does not affect the source list, hence
+	the tables \texttt{NC} and \texttt{CC} keep the same constructor.
+	On the other hand when the target list is empty, in the \texttt{NN} and
+	\texttt{CN} case, the constructor is substituted respectively by
+	\texttt{NC} and \texttt{CC}.
+	In the last two cases the function \texttt{extractD} is used to extract
+	the appropriate node \texttt{g}, edit script \texttt{e} and table
+	\texttt{c}, needed to compute the recursive extension \texttt{d}
+	and lastly select the table with minimal cost.
+		
+	The function \texttt{extendD} is analogous and thus omitted.
+
+	\subsection{Algorithm}
+	\label{subsec:HaskellAlgo}
+	Using all the constructs defined previously, the conventional
+	interface of GNU diff can be easily made available to the
+	user:
+
+\begin{minted}{haskell}
+gdiff :: (Metric f, a :<: f, b :<: f) => a -> b -> ES f '[ a ] '[ b ]
+gdiff x y = getDiff (diffT dx dy)
+  where dx = DCons (toDTree x) DNil
+         dy = DCons (toDTree y) DNil
+\end{minted}
+	
+	The inverse function \texttt{patch}, which computes the target
+	object from the edit script, is also part of the interface
+	provided to the user.
+
+\begin{minted}{haskell}
+patch :: Family f => ES f xs ys -> DList f ys
+patch (Ins x e) = insert x (target e)
+patch (Del x e) = target e
+patch (Upd x y e) = insert y (target e)
+patch End = DNil
+\end{minted}
+
+	The function \texttt{insert} pops the arguments of the 
+	constructor from the given \texttt{DList} and builds
+	a well-typed \texttt{DTree} which is then pushed on the list.
+
+\begin{minted}{haskell}
+insert :: (a :<: f) => f xs a -> DList f (xs :++: ys) -> DList f (a ': ys)
+insert x ds = DCons (Node x ds1) ds2
+  where (ds1, ds2) = dsplit (reifyArgs x) ds
+\end{minted}
+
+	The function \texttt{dsplit} is entirely similar to the function
+	\texttt{dsplit} described in \ref{par:UtilityFun}, the first 
+	argument is a singleton type needed due to the strict
+	phase separation enforced in Haskell.
+	The function \texttt{reifyArgs} retrieves the singleton
+	type relative to its arguments.
+
+\begin{minted}{haskell}
+reifyArgs :: Family f => f xs a -> SList xs
+reifyArgs = toSList . argsTy
+\end{minted}
+
+	\subsection{Discussion and Related Work}
+	The edit script data type, the memoization technique 
+	employed in the \texttt{diff} algorithm presented in this section
+	are largely inspired by the work on type-safe diff by 
+	Lempsink \cite{Lemp09}.
+	As remarked in section \ref{subsec:RelatedWork}, the update
+	edit used represents a generalization of the original copy edit, 
+	and has been preferred because it improves the alignment of nodes, 
+	simplifying the merging phase in the \texttt{diff3} algorithm.
+	The 
+
+	\paragraph{Kind system}
+	The enrichment of the \emph{kind} system proposed in
+	\cite{Yorgey12} and available from GHC 7.6
+	makes the data type definitions ``well-kinded''
+	and reduce the additional machinery needed to deal with them.
+	Specifically using the DataKinds extension lists are 
+	automatically promoted and allows to index the \texttt{ES}
+	and \texttt{DList} data types with lists of types, whose kind is 
+	\texttt{[ * ]}.
+	Direct pattern match is possible and does not required 
+	additional class constrains, such as \texttt{IsList}.
+	Furthermore the kind system has been enhanced so that
+	the correct kind is automatically inferred, reducing the number
+	of kind annotations needed. Most of the time kinds 
+	annotations are superfluous and some have been
+	added exclusively for documentation purposes.
+	The memoization related functions have been greatly 
+	simplified using auxiliary intermediate GADTs to
+	existentially quantify variables, as opposed to the continuation
+	style employed by  Lempsink, in which functions take
+	an higher rank function as an additional parameter.
+	The two approaches are roughly equally expressive, however
+	direct style code is much more readable and concise.
+	As a result the implementation proposed in this thesis 
+	requires less boilerplate code and it is closer to the
+	Agda version, showing how dependently typed programming
+	is becoming more and more natural in Haskell.
+
+	\paragraph{Change Detection}
+	The technique employed by Lempsink et al. in the 
+	change detection phase for structured data is a variation of
+	that proposed by Lozano and Valiente to solve the
+	Maximum Common Embedded Subtree problem \cite{Lozano}.
+	The input trees are flattened to a list of nodes according to the 
+	depth-first perorder traversal and then the longest common
+	subsequence of them is computed, similarly to what happens
+	in GNU diff. The algorithm proposed in this section follows
+	a similar technique, with small differences in the list data type 
+	processed in a stack like fashion.
+
+	\paragraph{HList vs DList}	
+	In \cite{Lemp09} the input lists is an heterogeneous list, whose 
+	raw types are progressively deconstructed exposing the 
+	reified constructor and pushing its	children on the stack. In this version 
+	instead the input data 	types are directly transformed into 
+	\texttt{DTree}, which directly expose their nodes and 
+	requires the same for all its children. Due to the lazy semantics of Haskell 
+	the two transformations should have approximately the same performance,		
+	however there are several advantages in the encoding proposed in this
+	thesis.
+	
+	First of all in \cite{Lemp09} constructors are compared implicitly,
+	by trying to deconstruct a value of a raw type against the constructor
+	at hand. This is achieved using the partial method \texttt{fields} of type,
+	adapted to our definitions, \texttt{f as a -> a -> Maybe (HList as)},
+	which is included in the type class \texttt{Family} and it is used to
+	implement the auxiliary function \texttt{matchConstructor}, in the
+	\texttt{diff} algorithm.
+	In this thesis instead such method is requires as a primitive,
+	specifically in the operator \texttt{=?=} in the type class \texttt{Family} 
+	\ref{subsec:Universe}, and explicitly test for equality between nodes.
+	It is much more concise to test equality at once using the latter,
+	rather than indirectly trying to match the given constructor,
+	with all the possible constructors of a given type.
+	In addition that method requires the additional type class \texttt{Type} that 
+	provides a method \texttt{constructors}, which 
+	returns a list of all the constructors of a given type.
+	Secondly comparing the nodes directly does not require to 
+	explicitly distinguish between concrete and abstract data types, as 
+	it happens in \cite{Lemp09}.
+	In summary the encoding provided by \texttt{DList} yields a
+	minimal and neat design that requires less boilerplate code,
+	which is often source of nasty bugs.
+	
+	\paragraph{Patch}
+	The \texttt{patch} function described in \cite{Lemp09} provides the 
+	same interface of GNU patch and applies an edit script 
+	to the source object, encoded as an heterogeneous list.
+	The semantics of delete and consequently copy relies
+	on the partial function \texttt{fields}, which deconstruct the input
+	value expecting a certain specific constructor and fails ungracefully,
+	if this is not the case.
+	As a matter of fact the edit script data type already contains enough 
+	information to reconstruct \emph{both} the source and target object.
+	Section \ref{subsec:HaskellAlgo} and in \ref{subsec:HaskellAlgo} show
+	two total function that retrieve both from the edit script alone.
+	The formal model heavily relies on this property and the advantage for a 
+	practical implementation	are evident.
+	Note that 	the same could be achieved in \cite{Lemp09} using
+	exclusively the \texttt{insert} and \texttt{apply} function.
+
+	\paragraph{Polymorphic data types}
+	Lempsink et al.\ remark that the encoding used in \cite{Lemp09} and here,
+	which is inspired by Multirec \cite{Multirec}, is unable to handle 
+	polymorphic data types, such as list, which must be restricted to be 
+	monomorphic.
+	The reason is that this technique relies on type equality proofs,
+	which is straightforward for ground types, but subtle for type parameters.
+	In fact the outcome of the equality test depends on the specific
+	instantiation of the parameter and thus cannot be defined in advance, once
+	and for all as it happens in the current implementation.
+	One conservative solution is to ignore the possible instantiations of 
+	parameters and treat parameters equal only to themselves.
+	Consider for instance the following polyomorphic data type:
+	
+\begin{minted}{haskell}
+data Foo a = C1 Int
+             | C2 Bool
+             | C3 a
+\end{minted}
+	At compile time it is known that the first argument of every constructor 
+	\texttt{C3} is of type \texttt{a} and it would be possible to 
+	exploit this piece of information	to match them accordingly.
+	Nevertheless this syntactic approach would fail to detect the matching
+	that would arise when \texttt{a} is instantiated with either \texttt{Int} or 
+	\texttt{Bool}.
+	The \texttt{diff} discussed performs deep matching, which ignores
+	the position of values in the tree, therefore this technique would
+	profoundly change its semantics. Moreover the situation would get even
+	worse with two parameters because \emph{each} parameter could not be
+	matched with each ground type and the two parameters could not
+	be matched against each other even when they are instantiated with the
+	same type: the number of matching ignored would increase 
+	\emph{exponentially} in the number of free parameters.
+	It is then legitimate to wonder whether the \texttt{diff} algorithm, as it
+	is here described, is actually a polymorphic function, or if 	it has any 
+	meaningful semantics for polymorphic data.
+	
+
+	\paragraph{Type Manipulation}
+	In order to use \texttt{diff} two instances
+	
+	
+	\section{Diff$_3$}
+	\section{Version Control System}
+
+	% TODO remove when compiling the whole thesis	
+	\bibliographystyle{plain}
+ 	\bibliography{../svc}
+
+\end{document}

@@ -3,6 +3,7 @@
 \begin{document}
 
 \chapter{Formal Model}
+\label{chapter:FormalModel}
 This chapter presents a formal model used to study the semantics of the \texttt{diff} and \texttt{diff3} algorithms and their properties.
 The model has been mechanically verified using the Agda proof assistant
 \cite{Bove09, NorellPhd, Norell08}.
@@ -202,6 +203,7 @@ for edits. Lastly sections \ref{subsec:Diff3} and \ref{subsec:Merged3} further e
 	I have decided to avoid this encoding to simplify the model.
 	
 	\paragraph{Utility Functions}
+	\label{par:UtilityFun}
 	Two utility functions involving \texttt{DList} that will be used in the 
 	following are reported here.
 	Their implementation is straightforward and omitted.
@@ -274,6 +276,7 @@ data ES : List Set -> List Set -> Set where
 	\texttt{v} and \texttt{w}.
 	
 	\paragraph{Source and Target object}
+	\label{par:SourceTargetObj}
 	An edit script of type \texttt{ES xs ys} contains the edits
 	that transform a \texttt{DList xs}, called \emph{source}, 
 	in a \texttt{DList ys}, called \emph{target}. 
@@ -681,7 +684,8 @@ cost [] = 0
 	The function \texttt{distance} weights the difference between two nodes 
 	and it is expected to be a \emph{metric} on the set of nodes.
 
-	\paragraph{Metric}	
+	\paragraph{Metric}
+	\label{par:Metric}
 	A metric on a set $A$ is a function $d	 : (A \times A) \rightarrow \mathbb{R}$
 	such that $\forall x, y, z \in A$:
 	\begin{align*}
@@ -1913,6 +1917,7 @@ the Agda proof assistant.
 \end{itemize}
 
 	\subsection{Related Work}
+	\label{subsec:RelatedWork}
 	\todo{Use different font for tools' name}
 	The great number of publications shows that there is an increased 
 	interest in the topics of change detection and merge.
