@@ -1,16 +1,16 @@
 \documentclass[../Thesis.tex]{subfiles}
 
 \begin{document}
-
 \chapter{Haskell Implementation}
+\todo{Remove tick from constructors in types}
 This chapter presents the Haskell implementation of the \texttt{diff}
 and \texttt{diff₃} algorithms discussed in \ref{chapter:FormalModel}.
 
 	\subsection*{Motivation}
 	Even though Agda's type system is sophisticated, it is still a research 
 	prototype and its compiler is still rather immature and does not produce
-	efficient code. Consequently a more mature programming language has been 
-	chosen, in order to provide a practical implementation of
+	efficient code. Consequently a more mature programming language has 
+	been chosen to provide a practical implementation of
 	the algorithms studied in this thesis.
 	Haskell, a general-purpose, strongly typed, purely functional 
 	programming language \cite{Hudak07ahistory, Marlow_haskell2010} 
@@ -19,17 +19,14 @@ and \texttt{diff₃} algorithms discussed in \ref{chapter:FormalModel}.
 	Glasgow Haskell Compiler (GHC) \cite{GHC}, the current state-of-the-art, 
 	optimizing compiler for Haskell, provides several extensions to the type
 	system, which allow to partially simulate dependently typed programming.
-	\todo{Mention which version GHC was used}
 	The implementation discussed in this chapter 
-	relies heavily on Generalized Algebraic Data Types 
+	relies heavily on them, in particular on Generalized Algebraic Data Types 
 	(GADT) \cite{JonWasWei04,PeytonJonesSUT,SchGADT} and Type Families
-	\cite{ChakATC,ChakATS,SchrTCO,SchrTOT,Kiselyov09funwith}.
-	In the following their limitations with respect to the formal model will be 
-	remarked.
-	Furthermore Type Classes provide a convenient way to make the 
-	implementation modular.
-
-	\todo{Different font for Type Class, Type Family and GADT?}
+	\cite{ChakATC,ChakATS,SchrTCO,SchrTOT,Kiselyov09funwith}, and was
+	developed using the latest stable release of GHC, version 7.8.3.
+	The shortcomings of the implementation with respect
+	to the formal model, developed instead in a dependently typed language, 
+	will be pointed out.
 	
 	\section{Basics}
 	This section presents the basic data types and type classes used 
@@ -40,7 +37,7 @@ and \texttt{diff₃} algorithms discussed in \ref{chapter:FormalModel}.
 	\paragraph{Proxy}
 	Programs that inspect and manipulate types need specific data types
 	and functions, whose main role is to fix types and 
-	ultimately satisfy the type checker, rather than computing values.
+	ultimately drive type inference, rather than storing and computing values.
 	For example the data type \texttt{Proxy a} is a poly-kinded proxy type that 
 	has only one non-bottom value, namely \texttt{Proxy}, and it
 	is usually used to specify types in signatures.
@@ -52,8 +49,8 @@ data Proxy t = Proxy
 	This data type will be used quite often in the rest of the chapter.
 	
 	\paragraph{Type Equality}
-	In the formal model a decidable type equality binary operator was 
-	employed in the \texttt{diff} algorithm and to type check
+	In the formal model a decidable type equality was assumed in
+	the \texttt{diff} algorithm and extensively used to type check
 	merged edit script. This kind of function is usually not available 
 	in strongly typed	languages like Haskell, because type are erased 
 	at run time. However, when the set of types involved is limited to a
@@ -61,27 +58,27 @@ data Proxy t = Proxy
 	an operator for them.
 
 	The type \texttt{Elem a xs} denotes that the type \texttt{a}
-	belongs to the list of types\texttt{xs}.
+	belongs to the list of types \texttt{xs}.
 	Its definition closely resembles the membership 
 	data types discussed in the formal model:
 	
 \begin{minted}{haskell}
-data Elem a as where
-  Here :: Elem a (a ': as)
-  There :: Elem a as -> Elem a (b ': as)
+data Elem a xs where
+  Here :: Elem a (a : xs)
+  There :: Elem a xs -> Elem a (b : as)
 \end{minted}
 
-	Assuming that \texttt{as} does not contain duplicates it is possible
+	Assuming that \texttt{xs} does not contain duplicates it is possible
 	to test type equality for types that belong to it:
 \begin{minted}{haskell}
-cmpTy :: Elem a as -> Elem b as -> Maybe (a :~: b)
+cmpTy :: Elem a xs -> Elem b xs -> Maybe (a :~: b)
 cmpTy Here Here = Just Refl
 cmpTy (There i) (There j) = cmp i j
 cmpTy _ _ = Nothing
 \end{minted}	
 
 	The two arguments act as indexes in the \emph{same}
-	list \texttt{as}. If they happen to point to the same element in the
+	list \texttt{xs}. If they happen to point to the same element in the
 	list, then equality follows, otherwise the two types are different.
 
 	\subsection{Universe}
@@ -92,7 +89,7 @@ cmpTy _ _ = Nothing
 	a concrete type with this kind must be defined for the family
 	of mutually recursive data types at hand. Nevertheless, 
 	Haskell's type class system support higher kinds, hence it is easy to
-	abstract over them in the implementation using a type class.
+	abstract over them in the algorithms using a type class.
 	
 \begin{minted}{haskell}
 class Family f where
@@ -104,8 +101,8 @@ class Family f where
 \end{minted}
 
 	The type parameter \texttt{f} has kind \texttt{[ * ] -> * -> *}, in
-	Haskell kind signatures, where \texttt{*} corresponds to \texttt{Set} in
-	Agda and \texttt{[ * ]} to \texttt{List Set}. 
+	Haskell kind signatures, where \texttt{*} corresponds in
+	Agda to \texttt{Set} and \texttt{[ * ]} to \texttt{List Set}. 
 	A value of type \texttt{f xs a} represents a concrete constructor
 	of a data type of type \texttt{a}, that takes arguments of types determined 
 	by \texttt{as}.
@@ -119,10 +116,9 @@ class Family f where
 	refined signature.
 	The methods \texttt{argsTy} and \texttt{outputTy} reify respectively the
 	arguments and output types of a constructor and are needed for
-	type checking merged edit scripts. This topic
-	will be explained in more details in the following.
+	type checking merged edit scripts.
 	Lastly the method \texttt{string} returns a string representation of a
-	constructor and it is used exclusively for to interact with the user.
+	constructor and it is used exclusively to interact with the user.
 	
 	The second type class defined relates single types and a family:
 \begin{minted}{haskell}
@@ -141,16 +137,19 @@ class (Family f, ShowType a) => a :<: f where
 	and the other way around.
 	The class \texttt{ShowType} provides the method \texttt{showTy}, which
 	returns a string representation of the type \texttt{a} and it is
-	used exclusively for error reporting when type checking. 
-
+	used solely for error reporting when type checking. 
+	\todo{string, ShowType and showTy are irrelevant ... remove?}
+	
 \begin{minted}{haskell}
 class ShowType a where
   showTy :: Proxy a -> String
 \end{minted}
 	
-	\subsection{Typed List}
+	\subsection{Typed List}		
+	\todo{Is it better to have just an introductive 	chapter about all these
+	kinds of lists?}
 	The algorithms manipulate several different kind of typed list,
-	that are all small variation of the heterogeneous list \texttt{HList} 
+	which are all small variation of the heterogeneous list \texttt{HList} 
 	introduced in \ref{chapter:FormatRepresentation} \todo{Specific section 
 	about HList}. This section defines them and explains their role.
 	
@@ -160,11 +159,11 @@ class ShowType a where
 
 \begin{minted}{haskell}
 data TList f as where
-  TNil :: TList f '[]
-  TCons :: (a :<: f) => Proxy a -> TList f as -> TList f (a ': as)
+  TNil :: TList f []
+  TCons :: (a :<: f) => Proxy a -> TList f as -> TList f (a : as)
 \end{minted}
 
-	The presence of the proxy is to conveniently access the type later on.
+	The presence of the proxy is to conveniently manipulate the type later on.
 	The methods \texttt{argsTy} and \texttt{outputTy} of the type class
 	\texttt{Family f} discussed previously requires to produce \texttt{TList}
 	for each argument and output type, therefore automatically requiring
@@ -186,11 +185,11 @@ class KnownTList f as where
 instance KnownTList f '[] where
   tlist = TNil
 
-instance (a :<: f, KnownTList f as) => KnownTList f (a ': as) where
+instance (a :<: f, KnownTList f as) => KnownTList f (a : as) where
   tlist = TCons Proxy tlist
 \end{minted}
 
-	The technique exploits the automatic instance resolution that happens
+	This technique exploits the automatic instance resolution that happens
 	while type-checking, to progressively build the desired \texttt{TList}.
 	In the second instance the type checker infer the expected type 
 	\texttt{Proxy a} for \texttt{Proxy} and the recursive call to \texttt{tlist} is 
@@ -220,15 +219,17 @@ instance Reify (TList f) where
 	
 \begin{minted}{haskell}
 data DList f xs where
-  DNil :: DList f '[]
-  DCons :: (a :<: f) => DTree f a -> DList f as -> DList f (a ': as)
+  DNil :: DList f []
+  DCons :: (a :<: f) => DTree f a -> DList f as -> DList f (a : as)
 
 data DTree f a where
   Node :: f as a -> DList f as -> DTree f a
 \end{minted}
 	
 	The data type \texttt{DTree f a} is a type safe representation of
-	an algebraic data type of type \texttt{a}.
+	an algebraic data type of type \texttt{a}, where the term
+	of type \texttt{f as a} is a reifyed witness of a constructor 
+	of \texttt{a}.
 	
 	\section{Diff}
 	This section describes the implementation of the 
@@ -240,27 +241,27 @@ data DTree f a where
 	a well-typed list of edits of type \texttt{u \textasciitilde> v}, each of them
 	encoding the change made with their source and target values.
 	That definition is particularly elegant because it isolates the actual set of
-	edits from the conditions required to stack them in a type-safe manner,
-	which are embedded in the cons constructor signature and consists
+	edits from the conditions required to stack them in a type-safe manner.
+	They are embedded in the cons constructor signature and consist
 	in expecting the input types of the edit to match the prefix of the
 	type lists of the rest of the edit script.
 	Remarkably these rules are the same regardless of the concrete edit 
 	at hand, which makes it possible to separate the two data types.
 	This modular representation is unfortunately not possible in the current
-	version of GHC for two reasons. Firstly, as Yorgey et. al explain in 
-	\cite{Yorgey12}, GADTs are unpromotable,  i.e. it is not possible index
-	a GADT by another GADT, which prevents the edit data type
-	to be indexed by values.
-	This feature would require kind equality and kind coercions, which would 
-	dramatically complicate type equivalence.
+	version of GHC for two reasons. Firstly GADTs are unpromotable,  i.e. it is 
+	not possible index a GADT by another GADT, which prevents the edit data 
+	type	to be indexed by values.
+	As Yorgey et. al explain in \cite{Yorgey12}, this feature would require kind 
+	equality and kind coercions, which would  dramatically complicate type 
+	equivalence.
 	Secondly not even indexing edits directly by their input and output type lists
 	would completely solve the issue:
 	
 \begin{minted}{haskell}
 data Edit f as bs cs ds where
-  EIns :: f as a -> Edit f [] [] as [ a ] 
-  EDel :: f as a -> Edit f as [ a ] [] [] 
-  EUpd :: f as a -> f bs a -> Edit f as [ a ] bs [ a ] 
+  Ins :: f as a -> Edit f [] [] as [ a ] 
+  Del :: f as a -> Edit f as [ a ] [] [] 
+  Upd :: f as a -> f bs a -> Edit f as [ a ] bs [ a ] 
 
 data Edits f xs ys where
   ENil :: Edits f [] [] 
@@ -273,7 +274,7 @@ data Edits f xs ys where
 	the type checker refuses to find suitable parameters \texttt{xs} and 
 	\texttt{ys}, to solve unification problems such as \texttt{zs = as :++: xs},
 	for some given \texttt{zs}. This issue could be resolved including
-	two singleton lists \texttt{SList xs} and \texttt{SList ys} to \texttt{ECons},
+	two singleton lists \texttt{SList xs} and \texttt{SList ys} in \texttt{ECons},
 	which would however slightly obfuscate the code.
 	Note that this is not an issue in Agda data types because parameters
 	must all be declared either as implicit or explicit arguments and 
@@ -281,8 +282,9 @@ data Edits f xs ys where
 	using singleton lists.	
 	
 	To sidestep all these limitations the edit script data type have been defined 
-	similarly to that of \cite{Lemp09}, collapsing edit and edit script into
-	a single data type, introducing specific constructors for
+	similarly to that of Lempsink et al. in \cite{Lemp09}, 
+	collapsing edits and edit script into
+	a single data type and introducing specific constructors for
 	each kind of edit. Note that this definition completely preserves type safety,
 	but it is only more repetitive.
 
@@ -301,7 +303,7 @@ data ES f xs ys where
 
 	\subsection{Memoization}
 	The \texttt{diff} algorithm described in \ref{subsec:AlgoDiff} is inefficient 
-	because same subcomputations are recomputed multiple times.
+	because the same subcomputations are recomputed multiple times.
 	An equivalent, but more efficient, version can be achieved using 
 	memoization, i.e. storing the result of subcomputations in a lookup-table,
 	encoded by the following data type:
@@ -325,7 +327,7 @@ data EST f xs ys where
 	
 	A table of type \texttt{EST f xs ys} contains an edit script
 	of minimal cost of type \texttt{ES f xs ys}, and the subtables
-	corresponding to its tail, obtained by placing either an insert, or
+	corresponding to its tail, obtained by placing either an insert,
 	a delete, or an update edit.
 	The table is partitioned in four groups depending on the fact
 	that the source and target list is empty or not.
@@ -417,14 +419,16 @@ cost (Upd f g xs) = distance f g + cost xs
 	to keep it clear	and focused on the type related issues, which are 
 	more interesting and challenging.
 	
-	Lastly the type class \texttt{Metric f} provides an hook to the final user
-	for comparing nodes, assigning a numeric distance between them.
+	Lastly the type class \texttt{Metric f} provides the final user with 
+	an hook for comparing nodes, assigning a numeric distance between them.
 \begin{minted}{haskell}
 class Metric f where
   distance :: f xs a -> f ys a -> Double
 \end{minted}
 	Any \texttt{Metric} instance is expected to satisfy the axioms listed 
-	in \ref{par:Metric}.	
+	in \ref{par:Metric}. Note that only nodes with the same target type
+	can be included in an update, hence the same restriction holds
+	for \texttt{distance}.
 	
 	The function \texttt{extendI} use an auxiliary intermediate 
 	data type \texttt{DES} used to existentially quantify the portion of the table
@@ -457,11 +461,11 @@ extendI f _ i@(NC _ e _) = NC f (Ins f e) i
 extendI f _ i@(CN _ _ _) =
   case extractD i of
     DES g e c -> CC g f (best g f i d c) i d c
-      where d = extendI f undefined c
+      where d = extendI f ⊥ c
 extendI f _ i@(CC _ _ e _ _ _) =
   case extractD i of
     DES g e c -> CC g f (best g f i d c) i d c
-      where d = extendD f undefined c
+      where d = extendD f ⊥ c
 \end{minted}
 
 	First of all the second argument of type \texttt{DList f ys} is never inspected
@@ -527,7 +531,7 @@ reifyArgs = toSList . argsTy
 \end{minted}
 
 	\subsection{Discussion and Related Work}
-	The edit script data type, the memoization technique 
+	The edit script data type and the memoization technique 
 	employed in the \texttt{diff} algorithm presented in this section
 	are largely inspired by the work on type-safe diff by 
 	Lempsink \cite{Lemp09}.
@@ -535,7 +539,18 @@ reifyArgs = toSList . argsTy
 	edit used represents a generalization of the original copy edit, 
 	and has been preferred because it improves the alignment of nodes, 
 	simplifying the merging phase in the \texttt{diff3} algorithm.
-	The 
+	The \texttt{diff} algorithm requires to write some boilerplate code, about
+	the same amount of that by Lempsink.
+	In particular a data type that encodes the constructors of the
+	family of mutually recursive data types must be defined, then
+	an appropriate instance of the \texttt{Family} and \texttt{Metric} is needed
+	for it and lastly an instance of \texttt{a :<: f} for each type mentioned in the 
+	family is required. The code for \texttt{Family} and \texttt{a :<: f} is
+	entirely straightforward and can be automatically generated using
+	a preprocessor or a meta-programming library such as Template Haskell
+	\cite{TemplateHaskell}. The instance of \texttt{Metric} is in general
+	domain specific and it must adhere to certain axioms and thus should
+	be provided manually be the user.
 
 	\paragraph{Kind system}
 	The enrichment of the \emph{kind} system proposed in
@@ -578,12 +593,11 @@ reifyArgs = toSList . argsTy
 	processed in a stack like fashion.
 
 	\paragraph{HList vs DList}	
-	In \cite{Lemp09} the input lists is an heterogeneous list, whose 
+	In \cite{Lemp09} the input list is an heterogeneous list, whose 
 	raw types are progressively deconstructed exposing the 
-	reified constructor and pushing its	children on the stack. In this version 
-	instead the input data 	types are directly transformed into 
-	\texttt{DTree}, which directly expose their nodes and 
-	requires the same for all its children. Due to the lazy semantics of Haskell 
+	reified constructor and pushing its	children on the stack. In this version instead the \texttt{DTree} data type already contains
+	the nodes of the root and its children.
+	Due to the lazy semantics of Haskell 
 	the two transformations should have approximately the same performance,		
 	however there are several advantages in the encoding proposed in this
 	thesis.
@@ -595,9 +609,10 @@ reifyArgs = toSList . argsTy
 	which is included in the type class \texttt{Family} and it is used to
 	implement the auxiliary function \texttt{matchConstructor}, in the
 	\texttt{diff} algorithm.
-	In this thesis instead such method is requires as a primitive,
+	In this version instead such method is requires as a primitive,
 	specifically in the operator \texttt{=?=} in the type class \texttt{Family} 
-	\ref{subsec:Universe}, and explicitly test for equality between nodes.
+	\ref{subsec:Universe}, which explicitly tests for equality 
+	between nodes.
 	It is much more concise to test equality at once using the latter,
 	rather than indirectly trying to match the given constructor,
 	with all the possible constructors of a given type.
@@ -616,14 +631,14 @@ reifyArgs = toSList . argsTy
 	same interface of GNU patch and applies an edit script 
 	to the source object, encoded as an heterogeneous list.
 	The semantics of delete and consequently copy relies
-	on the partial function \texttt{fields}, which deconstruct the input
+	on the partial function \texttt{fields}, which deconstructs the input
 	value expecting a certain specific constructor and fails ungracefully,
 	if this is not the case.
 	As a matter of fact the edit script data type already contains enough 
 	information to reconstruct \emph{both} the source and target object.
-	Section \ref{subsec:HaskellAlgo} and in \ref{subsec:HaskellAlgo} show
+	Section \ref{subsec:HaskellAlgo} and \ref{subsec:par:SourceTargetObj} show
 	two total function that retrieve both from the edit script alone.
-	The formal model heavily relies on this property and the advantage for a 
+	The formal model heavily relies on this property and the advantages with respect to safety for a 
 	practical implementation	are evident.
 	Note that 	the same could be achieved in \cite{Lemp09} using
 	exclusively the \texttt{insert} and \texttt{apply} function.
@@ -637,7 +652,7 @@ reifyArgs = toSList . argsTy
 	which is straightforward for ground types, but subtle for type parameters.
 	In fact the outcome of the equality test depends on the specific
 	instantiation of the parameter and thus cannot be defined in advance, once
-	and for all as it happens in the current implementation.
+	and for all, as it happens in the current implementation.
 	One conservative solution is to ignore the possible instantiations of 
 	parameters and treat parameters equal only to themselves.
 	Consider for instance the following polyomorphic data type:
@@ -660,19 +675,646 @@ data Foo a = C1 Int
 	matched with each ground type and the two parameters could not
 	be matched against each other even when they are instantiated with the
 	same type: the number of matching ignored would increase 
-	\emph{exponentially} in the number of free parameters.
+	\emph{exponentially} with the number of free parameters.
 	It is then legitimate to wonder whether the \texttt{diff} algorithm, as it
 	is here described, is actually a polymorphic function, or if 	it has any 
 	meaningful semantics for polymorphic data.
 	
 
 	\paragraph{Type Manipulation}
-	In order to use \texttt{diff} two instances
-	
+	\todo{Remove}
+	The set of operations required by \cite{Lemp09} is roughly the
+	same needed here, except for the function \texttt{getElem} which 
+	is needed to implement an equality test for the types that appear
+	in the family at hand. This feature is not needed in the \texttt{diff}
+	algorithm, but it is required to type check merged scripts in the
+	\texttt{diff3} algorithm.\todo{Works on embedded type equality?}
 	
 	\section{Diff$_3$}
-	\section{Version Control System}
+	This section shows the Haskell implementation of the
+	\texttt{diff3} algorithm discussed in \ref{subsec:diff3}.
+	The differences are minimal and the only remarkable distinction
+	is that the implementation is less safe than the one
+	proposed in the formal model, because of the limitations
+	of data type promotion.
+	
+%		The differences are
+%	Sections \ref{subsec:ES3} contains the basic data types definitions. 
 
+	\subsection{Edit Script}
+	\label{subsec:ES3}
+	The \texttt{ES3 xs} data type represents a merged edit script,
+	whose source object has type list \texttt{xs} and it
+	is almost identical to the \texttt{ES} data type.
+	
+\begin{minted}{haskell}
+data ES3 f xs where
+  Ins3 :: (a :<: f) => f xs a -> ES3 f ys -> ES3 f ys
+  Del3 :: (a :<: f) => f xs a -> ES3 f (xs :++: ys) -> ES3 f (a ': ys) 
+  Upd3 :: (a :<: f) => f xs a -> f ys a -> ES3 f (xs :++: zs) -> ES3 f (a ': zs) 
+  Cnf3 :: VConflict f -> ES3 f xs -> ES3 f ys
+  End3 :: ES3 f '[] 
+\end{minted}
+
+	The edit script is type safe only with respect
+	to the source list for the reasons listed in \ref{subsec:Diff3}.	
+	It is convenient to retain this bit of type safety because it 
+	simplifies the type checking phase, which then has to detect type 
+	errors with respect to the output list only.
+	The \texttt{VConflict} data type denotes the presence
+	of a conflict and corresponds to the \texttt{Conflict}
+	data type discussed in \ref{subsec:Merge}.
+\begin{minted}{haskell}
+data VConflict f where
+  InsIns :: f xs a -> f ys b -> VConflict f
+  UpdDel :: f xs a -> f ys a -> VConflict f
+  DelUpd :: f xs a -> f ys a -> VConflict f
+  UpdUpd :: f xs a -> f ys a -> f zs a -> VConflict f
+\end{minted}
+
+	However since conflicts already produce an ill-typed edit script
+	it has been simplified not to include
+	in its type any information about the values involved.
+		
+	\subsection{Algorithm}
+	\label{subsec:Diff3Algo}
+	The function \texttt{merge3} merges the changes from 
+	two aligned edit scripts and corresponds to that presented
+	in \ref{subsec:diff3}.
+
+\begin{minted}{haskell}
+merge3 :: (Family f, Metric f) => ES f xs ys -> ES f xs zs -> ES3 f xs
+merge3 (Upd o x e1) (Upd o' y e2) =
+  case aligned o o' of
+    (Refl, Refl) ->
+      case (o =?= x, o' =?= y, x =?= y) of
+        (Just (Refl, Refl), _, _) -> Upd3 o y (merge3 e1 e2) -- Id1
+        (_, Just (Refl, Refl), _) -> Upd3 o x (merge3 e1 e2) -- Id2
+        (_, _, Just (Refl, Refl)) -> Upd3 o x (merge3 e1 e2) -- Idem
+        (_, _, _                ) -> Cnf3 (UpdUpd o x y) (merge3 e1 e2)
+merge3 (Upd o x e1) (Del o' e2) =
+  case aligned o o' of
+    (Refl, Refl) -> 
+      case o =?= x of
+        Just (Refl, Refl) -> Del3 o (merge3 e1 e2) -- Id1
+        Nothing           -> Cnf3 (UpdDel o x) (merge3 e1 e2)
+merge3 (Del o e1) (Upd o' y e2) = 
+  case aligned o o' of
+    (Refl, Refl) -> 
+      case o' =?= y of
+        Just (Refl, Refl) -> Del3 o (merge3 e1 e2) -- Id2
+        Nothing           -> Cnf3 (DelUpd o y) (merge3 e1 e2)
+merge3 (Del x e1) (Del y e2) =
+  case aligned x y of
+    (Refl, Refl) -> Del3 x (merge3 e1 e2) -- Idem
+merge3 (Ins x e1) (Ins y e2) =
+  case x =?= y of
+    Just (Refl, Refl) -> Ins3 x (merge3 e1 e2) -- Idem
+    Nothing           -> Cnf3 (InsIns x y) (merge3 e1 e2)
+merge3 (Ins x e1) e2 = Ins3 x (merge3 e1 e2) -- Id2
+merge3 e1 (Ins y e2) = Ins3 y (merge3 e1 e2) -- Id1
+merge3 End End = End3
+\end{minted}
+
+	Notably Haskell does not allow to promote GADTs \cite{Yorgey12}, 
+	therefore it is impossible to define a data type that ensures the
+	alignment of two edit scripts, such as \texttt{e₁ ⋎ e₂}.
+	Consequently the alignment condition is checked at
+	run-time by the function \texttt{aligned} 
+	and the merge is aborted ungracefully if this is not the case.
+
+\begin{minted}{haskell}
+aligned :: Family f => f xs a -> f ys b -> (xs :~: ys , a :~: b)
+aligned a b =
+  case a =?= b of
+    Just (Refl, Refl) -> (Refl, Refl)
+    _ -> error "Scripts not aligned"
+\end{minted} 
+
+	For the same reason the merging conditions, described in the formal 
+	model by \texttt{f ⊔ g ↧ h}, are checked directly
+	comparing for equality the nodes involved. The corresponding conditions
+	have been added in form of a comment to help the reader's intuition.
+	The \texttt{Nop} operations have been excluded from the edit
+	script data type and the effect of the extension discussed in 
+	\ref{par:Extension} is achieved via pattern matching.
+	In particular the \texttt{Ins}-\texttt{Ins} case is matched first and
+	in the remaining cases, in which only one of the two edits is insert,
+	the insert is just added to the merged script. 
+	In the formal model this is equivalent to aligning \texttt{Ins α} with
+	a dummy \texttt{Nop} operation, which would produce the former upon 
+	merge.
+	
+	\subsection{Type Checking}
+	\label{subsec:TyCheck}
+	In order to retrieve the merged target object, the edit script 
+	produced by \texttt{merge3} has to be type checked in order transform it 
+	into a well-typed edit script.
+	The algorithm implements the typing rules listed in \ref{subsec:Merged3}
+	and reports all the type errors detected in a script.
+	The following data type encodes the target type list 
+	inferred for an edit script.
+	
+\begin{minted}{haskell}
+data InferredType f xs where
+  INil :: InferredType f '[]
+  ICons :: (x :<: f) => Proxy x -> InferredType f xs -> InferredType f (x ': xs)
+  Top :: InferredType f xs
+\end{minted}	
+	Additionally the constructor \texttt{Top} denotes an arbitrary list of types
+	and it is assigned to edit scripts that are ill-typed or that contain a conflict.
+	The data type \texttt{IES f xs} pairs together an edit script and its inferred 
+	type.
+\begin{minted}{haskell}
+data IES f xs where
+  IES :: InferredType f ys -> ES f xs ys -> IES f xs
+\end{minted}
+	 Note that the list of types \texttt{ys} must be existentially quantified,
+	 because it is not possible to know in advance the resulting type, as was 
+	 explained in \ref{subsec:Merged3}.
+	
+	\paragraph{Type errors}
+	Type errors are represented by the data type \texttt{TypeError}:
+\begin{minted}{haskell}
+data TypeError f where
+  TyErr :: ExpectedType f xs -> InferredType f ys -> TypeError f
+\end{minted}
+	
+	The type \texttt{InferredType f ys} denotes the actual type found for
+	some edit script, while the data type \texttt{ExpectedType f xs} is just a 
+	wrapper around \texttt{TList f xs}:
+\begin{minted}{haskell}
+newtype ExpectedType f xs = ET (TList f xs)
+\end{minted}
+
+	Type errors and value conflicts are all reported as conflicts while type 
+	checking:
+\begin{minted}{haskell}
+data Conflict f = VConf (VConflict f)
+                 | TConf (TypeError f)
+\end{minted}
+	
+	\paragraph{Unification}
+	The second typing rule discussed in section 
+	\ref{subsec:Merged3} requires to check whether the list of types \texttt{xs} 
+	expected as argument by some node of type \texttt{f xs a} is a prefix of 
+	\texttt{zs}, the list of output types inferred for the edit script at hand.
+	The data type \texttt{IsPrefixOf f xs zs} represents such a proof:
+
+\begin{minted}{haskell}
+data IsPrefixOf f xs zs where
+  Prefix :: InferredType f ys -> Unify (xs :++: ys) zs -> IsPrefixOf f xs zs
+\end{minted}
+
+	More precisely \texttt{xs} is a prefix of \texttt{zs}, if there is a suffix 
+	\texttt{ys}, possibly empty, such that \texttt{xs :++: ys} equals to 
+	\texttt{zs}.
+	The type \texttt{Unify as bs}  denotes that the two list of types 
+	\texttt{as} and \texttt{bs} can be unified.
+
+\begin{minted}{haskell}
+data Unify as bs where
+  Same :: Unify as as
+  Failed :: Unify as bs
+\end{minted}
+
+	The second constructor \texttt{Failed} it is used to handle properly the 
+	super type \texttt{Top}, which by assumption unifies with any type.
+	
+	With these definitions in place it is straightforward to implement
+	the function \texttt{isPrefixOfTy}, which checks whether some 
+	concrete list of types is a prefix of the given inferred list:
+	
+\begin{minted}{haskell}
+isPrefixOfTy :: Family f => TList f as -> InferredType f bs -> Maybe (IsPrefixOf f as bs)
+isPrefixOfTy TNil s = Just (Prefix s Same)
+isPrefixOfTy s Top = Just (Prefix Top Failed)
+isPrefixOfTy (TCons _ _) INil = Nothing
+isPrefixOfTy (TCons x s1) (ICons y s2) =
+  case (tyEq x y, isPrefixOfTy s1 s2) of
+    (Just Refl, Just (Prefix s Same)) -> Just (Prefix s Same)
+    (Just Refl, Just (Prefix s Failed)) -> Just (Prefix s Failed)
+    _ -> Nothing
+\end{minted}
+	
+	The function is defined by induction on the two lists.
+	In the first base case it follows immediately that the empty list is
+	the prefix of any list. In the second case, any list unifies
+	with \texttt{Top} by assumption, hence instead of failing
+	the unifier \texttt{Failed} is used. Note that without this constructor
+	the type checker would prevent us to produce a value of type
+	\texttt{IsPrefixOf}.
+	On the other hand in the third base case a nonempty list cannot possibly
+	unify with the empty list, hence \texttt{Nothing} is returned.
+	In the last recursive case, in which both the lists are nonempty, the first 
+	types are compared and \texttt{isPrefixOfTy} is called recursively
+	on their tails. If a list is a prefix of another, adding the same type to both
+	the two lists preserves the property. For this reason if the first tails is a 
+	prefix of the second and the two types are equal the same suffix
+	\texttt{s} is retained. Note that it is necessary to explicitly pattern match
+	on the unifier to convince the type checker of this property.
+	If these conditions are not met, a negative answer is reported in form of 
+	\texttt{Nothing}.	
+		
+	\paragraph{Algorithm}
+	Since it is preferable to report at once all the conflicts found in an edit script
+	the type checker reports a list of conflicts and the converted typed edit
+	script, whose type have been inferred.
+	
+\begin{minted}{haskell}
+tyCheck :: Family f => ES3 f xs -> ([Conflict f], IES f xs)
+tyCheck End3 = ([], IES INil End)
+tyCheck (Cnf3 c e) =
+  case tyCheck e of
+    (tyErr, IES ty e') -> (VConf c : tyErr, IES Top ⊥)
+tyCheck (Del3 x e) =
+  case tyCheck e of
+    (tyErr, IES ty e') -> (tyErr, IES ty (Del x e'))
+tyCheck (Ins3 x e) =
+  case tyCheck e of
+    (tyErr, IES ty e') ->
+      let xs = argsTy x in
+      case xs `isPrefixOfTy` ty of
+        Just (Prefix xsys Same) -> (tyErr, IES (ICons Proxy xsys) (Ins x e'))
+        Just (Prefix xsys Failed) -> (tyErr, IES (ICons Proxy xsys) (Ins x ⊥))
+        Nothing -> (TConf (TyErr (ET xs) ty) : tyErr, IES (ICons Proxy Top) (Ins x ⊥))
+tyCheck (Upd3 x y e) =
+  case tyCheck e of
+    (tyErr, IES ty e') ->
+      let ys = argsTy y in
+      case ys `isPrefixOfTy` ty of
+        Just (Prefix yszs Same) -> (tyErr, IES (ICons Proxy yszs) (Upd x y e'))
+        Just (Prefix yszs Failed) -> (tyErr, IES (ICons Proxy yszs) (Upd x y ⊥))
+        Nothing -> (TConf (TyErr (ET ys) ty) : tyErr, IES (ICons Proxy Top) (Upd x y ⊥))
+\end{minted}
+
+	In the base case the empty edit script is converted to the corresponding
+	typed scrip, whose output type list is empty.
+	The value related conflicts are simply added to the list of conflicts
+	and since there is no edit script counterpart the converted edit script
+	is filled with \texttt{⊥}, i.e. \texttt{undefined}, and assigned type 
+	\texttt{Top}. In the \texttt{Del3} case no check is required, because
+	only the input list is affected by this edit and the \texttt{ES3} data type is 
+	already well-typed with respect to it.
+	On the other hand converting the \texttt{Ins3 x} and \texttt{Upd3 x y} edits
+	requires to verify that the output type of the rest of the edit script 
+	contain the types demanded respectively by the constructors \texttt{x} and 
+	\texttt{y}. These types are extracted using \texttt{argsTy} and the
+	auxiliary function \texttt{isPrefixOf} is used to match them
+	against \texttt{ty}, the type inferred for the rest of the edit script, obtained
+	by a recursive call to \texttt{tyCheck}.
+	Once more pattern match on the unifier object is required to actually
+	convince the type checker of the match. When the unification is vacuous,
+	denoted by \texttt{Failed}, the converted edit scrip is substituted with
+	\texttt{⊥}. Nevertheless, even in these circumstances, part of the correct 
+	type 	is inferred and reported, so that further type errors, independent
+	from the previous ones, can still be detected.	
+	
+	Note that using \texttt{⊥} is safe because the converted edit script is 
+	never inspected in \texttt{tyCheck} and thus never evaluated according to
+	Haskell's lazy semantics.
+	The invariant maintained by \texttt{tyCheck} is that the inferred edit
+	script is fully defined only if no conflicts have been detected. Furthermore
+	in that case the inferred type does not contain \texttt{Top}.
+	Therefore a safer interface is provided by means of \texttt{typeCheck},
+	which returns either a non empty list of conflicts or a well-type edit script.
+	
+\begin{minted}{haskell}
+typeCheck :: Family f => ES3 f xs -> Either [Conflict f] (WES f xs)
+typeCheck e =
+  case tyCheck e of
+    ([]  , IES ty e') -> Right $ WES (toTList ty) e'
+    (errs, _        ) -> Left errs
+\end{minted}
+%$
+
+	The data type \texttt{WES} stands for well-typed edit script, and it differs
+	from \texttt{IES} because the output type \texttt{ys} is stored as a
+	\texttt{TList}, instead of \texttt{InferredType} and therefore
+	does not contain any \texttt{Top} type.
+	Note that, even if a script is well-typed, its output type list still needs 
+	to be existentially quantified.
+	
+\begin{minted}{haskell}
+data ES f xs where
+  WES :: TList f ys -> ES f xs ys -> WES f xs
+\end{minted}
+
+	Finally for user's convenience the canonical \texttt{diff3} interface is
+	provided, which expects three arguments, the second 
+	being the original version and the first and the third being the new ones.
+	Note that those must have the same type, hence in this specific
+	case the expected output type of the edit script is known.
+	In this function the converted edit script is therefore also type-checked 
+	against it and an appropriate conflict is reported otherwise.
+	
+\begin{minted}{haskell}
+diff3 :: (Metric f, a :<: f, b :<: f)
+      => b -> a -> b -> Either [Conflict f] (ES f '[ a ] '[ b ])
+\end{minted}
+
+	\section{Version Control System}
+	This sections presents a prototype of a structure-aware version control 
+	system that put the results presented previously into practice.
+	The prototype is not meant to be of production quality, but rather
+	a proof of concept that shows the applicability of the ideas discussed 
+	in this thesis.
+	
+	\subsection{Design}	
+	The design of the prototype is inspired by Git \cite{GIT}.
+	The repository is modeled as directed acyclic graph (DAG), in 
+	which every node may have at most two parents. The only node without
+	parents is the root, which contains the initial state; nodes
+	with only one parent denote single commits, while nodes with
+	two parents are reserved for merges between two 	branches.
+	Each node in the graph is identified by the hash of the path that
+	goes from the root to it.
+	Since the most common operations, e.g. commit, branching and merging,
+	are performed on the tip of a branch, paths are stored backwards,
+	so that these operations can be implemented efficiently.
+	
+\begin{minted}{haskell}
+data Path a = Root a
+              | Node  (Path a) Depth (Delta a)
+              | Merge (Path a) (Path a) Depth (Delta a)
+\end{minted}
+			
+	To keep the prototype simple, objects under revision are restricted to
+	keep the same type \texttt{a}. Except the root, all nodes do
+	not store a plain value, but only a \texttt{Delta}, i.e.\ an edit script 
+	that contains the 	differences from the previous version.
+\begin{minted}{haskell}
+type Delta a = ES '[ a ] '[ a ]
+\end{minted}
+	
+	In addition each non-root node stores its depth, i.e.\ the length of the 
+	path that goes from the root to it.
+	The depth of a path can be easily retrieved:
+\begin{minted}{haskell}
+depth :: Path a -> Depth
+depth (Root _) = 0
+depth (Node _ d _) = d
+depth (Merge _ _ d _) = d
+\end{minted}
+
+	Paths have strictly increasing depths, therefore, in order to maintain this 
+	invariant, the \texttt{Path} data type is kept abstract 
+	and smart constructors are provided instead:
+
+\begin{minted}{haskell}
+root :: a ->  Path a
+root = Root
+
+node ::  Path a -> Delta a ->  Path a
+node p = Node p (depth p + 1)
+
+merge :: Path a -> Path a -> Delta a ->  Path a
+merge p1 p2 e = Merge p1 p2 (max (depth p1) (depth p2) + 1) e
+\end{minted}
+	
+	Furthermore the current value of an object can reconstructed from the path:
+
+\begin{minted}{haskell}
+value :: Diff a => Path a -> a
+value (Root x) = x 
+value (Node _ _ e) = patch e
+value (Merge _ _ _ e) = patch e
+\end{minted}
+
+	Where \texttt{patch} is a type-restricted version of \texttt{target}
+	which additionally converts a \texttt{DTree} to a raw value. Its
+	implementation is straightforward and thus omitted.
+\begin{minted}{haskell}
+patch :: Diff b => ES '[ a ] '[ b ] -> b
+\end{minted}
+	
+	Since the target object can be retrieved directly from an edit script 
+	without the need of the source object, computing the current
+	value of a path does not require patching all the previous deltas 
+	from the root.
+	
+	\subsection{Lowest Common Ancestor}
+	The lowest common ancestor, henceforth LCA, of two nodes is the lowest
+	node, i.e.\ deepest from the root, that is an ancestor of both of them.	
+	In a tree the LCA is unique, however in a DAG there could be more.
+	In a connected DAG, in which every node has at most two parents, there are at most
+	two lowest common ancestors for every node.
+	This property is useful when merging two branches and it is explained 
+	in more detail in \ref{subsec:MergeLCA}.
+	The LCA is represented accordingly by the following data type:
+
+\begin{minted}{haskell}
+data Lca a = One (Path a)
+             | Two (Path a) (Path a)
+\end{minted}
+
+	Furthermore to take advantage of the faster hash-based comparison
+	for paths, the wrapper \texttt{HPath} is used:
+	
+\begin{minted}{haskell}
+newtype HPath a = HPath {hpath :: Path a}
+\end{minted}
+	The appropriate \texttt{Eq} and \texttt{Ord} instances are assumed for it.
+	
+	Two auxiliary functions are used to compute the LCA of two paths. Firstly the function \texttt{levels} pairs all the subpaths of the given path
+	by their depth in descending order.
+
+
+\begin{minted}{haskell}	
+levels :: Hashable a => Path a -> [(Depth, Set (HPath a))]
+levels r@(Root x)= [(0, singleton (HPath r))]
+levels n@(Node p d _) = (d, singleton (HPath n)) : levels p
+levels m@(Merge p1 p2 d _) = (d, singleton (HPath m)) : combine (levels p1) (levels p2)
+\end{minted}
+	
+	Secondly the function \texttt{combine} merges two such lists, combining the
+	paths at the same depth. Note that due to the invariants discussed
+	previously, the list returned contains an element for each depth level from
+	zero to the depth of the input path.
+	
+\begin{minted}{haskell}
+combine :: Hashable a => [(Depth, Set (HPath a))] -> [(Depth, Set (HPath a))] 
+          -> [(Depth, Set (HPath a))]
+combine [] ds2 = ds2
+combine ds1 [] = ds1
+combine a@((d1,xs) : ds1) b@((d2,ys) : ds2) =
+  case compare d1 d2 of
+    LT -> (d2, ys) : combine a ds2
+    EQ -> (d1, xs `union` ys) : combine ds1 ds2
+    GT -> (d1, xs) : combine ds1 b
+\end{minted}
+
+	Finally the function \texttt{lca} computes the lowest common ancestor
+	of two paths.
+
+\begin{minted}{haskell}
+lca :: Hashable a => Path a ->  Path a -> Lca a
+lca p1 p2 =
+  case find (not . null) (zipWith common ls1 ls2) of
+    Just s ->
+      case toList s of
+        [ r ] -> One (hpath r)
+        [r1  r2] -> Two (hpath r1) (hpath r2	)
+  where d = min (depth p1) (depth p2)
+        ls1 = dropWhile ((> d) . fst) (levels p1)
+        ls2 = dropWhile ((> d) . fst) (levels p2)
+        common (_, x) (_, y) = intersection x y
+\end{minted}
+
+	The lists \texttt{ls1} and \texttt{ls2} contains the subpaths of each
+	of the two paths, starting with the same common depth \texttt{d}.
+	Since the level \texttt{d} is the minimum depth of the two paths, the
+	lowest common ancestor cannot be at any depth greater than \texttt{d},
+	hence dropping elements greater than \texttt{d} is safe. Furthermore
+	since any path at a certain depth contains subpaths at every level
+	lower than it, it follows that \texttt{ls1} and \texttt{ls2} are aligned
+	with respect to depth.
+	Exploiting this property the subpaths at each level are combined by
+	intersection, finding thus the common ones.
+	Since these are also in descending order, 
+	the first non empty set contains the deepest, i.e. the lowest.
+	The set contains either one or two subpaths, which are then extracted
+	and wrapped in the right constructor.
+	Haskell semantics ensure that the lists of subpath and the list
+	of common paths are produced and consumed lazily, therefore
+	avoiding to unnecessarily process the paths at lower depths.
+	
+	\subsection{Merge}
+	\label{subsec:MergeLCA}
+	The \emph{three-way merge} algorithm merges two branches using the 
+	\texttt{diff3} algorithm, in which the two new versions are the 
+	latest in the branches, while their LCA's version is used as 
+	base. The LCA represents the best choice because
+	it is a common revision from which both the two branches diverged and
+	furthermore it is the lowest, therefore the closest to both of them.
+	However in some cases such as the \emph{criss-cross merge}, 
+	there could be two lowest common ancestors and neither of them
+	is better than the other.
+	
+	\paragraph{Criss-cross merge}
+	The criss-cross merge occurs when there are two separate branches
+	in which each branch progressively includes changes from the other,
+	as shown in the figure \ref{CrissCrossImg}
+	Depending on the role of the branches and the intended work-flow,
+	this pattern can arise quite often.
+	
+	For example imagine a repository in which there are two branches,
+	the main branch \texttt{master} and a development branch \texttt{dev}.
+	The \texttt{dev} branch, after adding some feature in commit \texttt{2},
+	is synchronized with master, pulling the changes made in \texttt{1}.
+	After solving any possible conflict, the merge is committed in \texttt{4}.
+	Similarly the \texttt{master} branch is merged with \texttt{dev}, 
+	adding the new feature from \texttt{2} and producing a new commit 
+	\texttt{3}.
+	In both these merges the lowest common ancestor is the root \texttt{0},
+	which is used as base in the \texttt{diff3} algorithm.
+	The pattern repeats itself and now the nodes \texttt{3} and \texttt{4}
+	must be merged: what node should be used as base?
+	Crucially the nodes \texttt{1} and \texttt{2} are both LCA, because they are 
+	ancestors of both of them and they have the same depth, however
+	none of them is better than the other.
+	Furthermore choosing arbitrarily one of them would raise bogus conflicts,
+	because the changes made in the other would not be taken into account.
+	Choosing an older, but unique ancestor is not satisfactory either.
+	In this case for example using node \texttt{0} as the candidate base would
+	raise the same conflicts encountered when merging \texttt{1} and \texttt{2},
+	which were already solved.
+	
+\begin{figure}[h]
+\centering
+\includegraphics[scale=0.40]{../images/CrissCross}
+\caption{Example of criss-cross merge.}
+\label{CrissCrossImg}
+\end{figure}
+	
+	\subsection{Recursive three-way merge}
+	The \emph{recursive three-way merge} algorithm is an extension
+	of the simple three-way merge algorithm, that applies in these
+	circumstances.
+	When two LCA are found, it builds a \emph{virtual} lowest common 
+	ancestor applying the three-way merge algorithm recursively on them.
+	The virtual ancestor is then used as a base in the \texttt{diff3} algorithm.
+	Since the number of nodes in every path are finite the algorithm 
+	eventually terminates.
+
+	\paragraph{Example}
+	In the previous example, the nodes \texttt{3} and \texttt{4} have
+	two LCA, nodes \texttt{1} and \texttt{2}, therefore the three-way merge 
+	is recursively applied to them. Their LCA, node \texttt{0}, is used as base
+	to build a virtual ancestor \texttt{1-2}, which is finally used as base to 
+	merge the nodes \texttt{3} and \texttt{4}.
+	
+	The recursive three-way merge can be easily implemented as follows:
+
+\begin{minted}{haskell}
+recursive3WayMerge :: (Hashable a, Diff a) => Path a -> Path a -> Either [Conflict] (Path a)
+recursive3WayMerge p q = 
+  case lca p q of
+    One a -> mergeWithAncestor p a q 
+    Two a b ->  
+      case recursive3WayMerge a b of
+        Left err -> Left err 
+        Right c -> mergeWithAncestor p c q 
+\end{minted}
+
+	The function \texttt{mergeWithAncestor} merges two
+	nodes applying the \texttt{diff3} algorithm. The arguments
+	are expected in the same order as \texttt{diff3}, hence the second 
+	\texttt{Path} is used as base.
+
+\begin{minted}{haskell}	
+mergeWithAncestor :: (Hashable a, Diff a) => Path a -> Path a -> Path a -> 
+                        Either [Conflict] (Path a)
+mergeWithAncestor p a q = 
+  case diff3 x o y of
+    Left err -> Left err 
+    Right e -> Right (merge p q e)
+  where x = value p
+         o = value a
+         y = value q
+\end{minted}
+	
+	\subsection{Discussion}
+	The prototype presented in this section lacks most of the
+	features commonly expected in version control systems.
+	For example they usually provide (graphical) user interface, 
+	record meta-data 
+	such as branches and user names and time and date of 
+	commits and so on. They also communicate over the 
+	network and serialize data and meta-data for persistence.
+	Part of these features mostly require a great deal of 
+	software engineering work and therefore have not
+	been addressed in this project,
+	nevertheless the prototype have all the essential ingredients
+	to perform revision control interactively, including
+	semi-automatic merge of revisions using the \emph{recursive three-way
+	merge} algorithm.
+	
+	\paragraph{File system}
+	Version control systems such as Git \cite{GIT} and Mercurial 
+	\cite{HG} do not track single objects, but a collection of files and 
+	directories. The prototype discussed in this thesis is in principle able
+	to correctly simulate the same behaviour. In fact it is possible to
+	model the portion of the file system under revision as a mapping
+	from paths to file contents. Providing appropriate support 
+	for unordered collections such as maps, it would be 
+	possible to instantiate the repository, 
+	as \texttt{Path (Map FileName Content)}, which would be initialized
+	with the empty mapping.
+	More research is needed to properly handle arbitrary data types that 
+	mix structured, tree-liked data types, with unordered collections.
+	The problem does not concern the alignment phase only, but it is 
+	also semantic.
+	For instance it is reasonable to expect that two maps are compared,
+	diffing pointwise values mapped by the same key and including
+	the entries that are present in one, but not in the other.
+	However this approach would not handle properly changes made
+	exclusively to the keys, which could happen for example 
+	by renaming a file.
+	These questions can dramatically affect the behaviour of a 
+	structure-aware version control	system and ought to be investigated.
+
+		
 	% TODO remove when compiling the whole thesis	
 	\bibliographystyle{plain}
  	\bibliography{../svc}
