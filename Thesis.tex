@@ -5,9 +5,10 @@
 \usepackage[parfill]{parskip}
 \usepackage{minted}
 \usepackage{subfiles}
-
+\usepackage{multicol}
+\usepackage{color}
 \usepackage[dvipsnames]{xcolor}
-
+\definecolor{dgreen}{rgb}{0.,0.6,0.}
 
 % This is used to specify fonts and configurationss
 \usepackage[no-math]{fontspec}
@@ -23,6 +24,7 @@
 \usepackage{bussproofs}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{pifont}% http://ctan.org/pkg/pifont
 
 % TODO notes
 \usepackage[textwidth=3.7cm]{todonotes} \setlength{\marginparwidth}{3.7cm}
@@ -31,6 +33,10 @@
 %\setmonofont[Scale=MatchLowercase]{Menlo}
 %\usepackage{MnSymbol}
 \usepackage{newunicodechar}
+
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
+
 %\newunicodechar{⊥}{$\bot$}
 %\newunicodechar{⟪}{$\llangle$}
 %\newunicodechar{⟫}{$\rrangle$}
@@ -39,7 +45,7 @@
 \newunicodechar{ⱽ}{$^v$}
 \newunicodechar{ˢ}{$^s$}
 \newunicodechar{ᵗ}{$^t$}
-
+\newunicodechar{✗}{\xmark}
 
 \begin{document}
 
@@ -50,11 +56,14 @@
 \tableofcontents
 \listoftodos 
 
-%boo! \cite{Bove09}.
-
 \subfile{./Format/Format.tex}
 \subfile{./FormalModel/FormalModel.tex}
+ 
+\graphicspath{{Implementation/}}
 \subfile{./Implementation/Implementation.tex}
+
+\subfile{./Example/Example.tex}
+
 \bibliographystyle{plain}
 \bibliography{svc}
 

@@ -5,19 +5,264 @@
 \chapter{Format Representation}
 \label{chapter:FormatRepresentation}
 
+This chapter addresses the problem of finding a unique representation for data formats, which is an
+important component of a structure-aware version control 
+system.
+Section \ref{sec:FormatIntroduction} introduces the problem by  analyzing the issue in more detail \ref{subsec:FormatMotivation} and briefly covers several auxiliary concepts, such as heterogeneous lists \ref{subsec:TypeList} and partial isomorphism \ref{subsec:PartIso}.
+The basic format representation is presented in section \ref{sec:Format}, 
+then several extensions are discussed in \ref{sec:Extensions}.
+Section \ref{sec:FormatConclusion} concludes, summarizing the main 
+contributions of this chapter \ref{subsec:Discussion} 
+and reviewing related work \ref{subsec:FormatRelatedWork}.
+
 \section{Introduction}
+\label{sec:FormatIntroduction} 
+ 
+\subsection{Motivation}
+\label{subsec:FormatMotivation}
 A format specifies how some data is stored and encoded in a file.
-When its format is known, it is possible to decode a file and apply the diff algorithm on the data itself, rather than its representation, thus leading to more accurate edit scripts. These are then are applied by a patch algorithm to the decoded data, producing then new version, which is then serialized in a file according to its format specification.
-A structure-aware version control system exploits this to improve the quality of revision control by avoiding unnecessary conflicts.
+When the format of a file is known, it is possible to decode it and apply the diff algorithm on the data itself, rather than its representation, thus leading to more accurate edit scripts. These are then are applied by a patch algorithm to the decoded data, producing the new version, which is then serialized in a file according to its format specification.
+A structure-aware version control system exploits this to
+avoid unnecessary conflicts and thus improving 
+the quality of revision control.
 
-Formats may be defined using formal grammars, such as context free grammars, from which it is usually possible to derive automatically a parser for it, that is a function that recognizes its structure in the input string. In functional programming languages parser combinators are commonly used to implement parsers.
-Printing is the opposite function of parsing, which consists of serializing some structured data, according to the format specifications.
+Formats are usually described using formal grammars, such as context free grammars.
+A parser is a function that recognizes a grammar in the input string and extracts the structured data that it describes.
+Printing is the opposite function, which consists of serializing some structured data, according to the format specifications.
+In functional programming languages parser combinators are commonly used to implement parsers.
+Furthermore there are several tools, such as Yacc \cite{YACC} 
+and Happy \cite{HAPPY}, called parser generator,
+that automatically generate a parser for a given grammar. 
 
-Given a format, its parser and printer should always be one the inverse of the other in order to ensure round-trip behavior, which means that printing some data and parsing it back should produce the initial value. Similarly parsing a properly formatted file and printing it back should produce the original file.
-These two functions are usually defined independently, which has several drawbacks. Firstly it is a repetitive and error-prone task, because the two functions follow the same format, secondly, as the format changes, the user is burdened with the task of keeping the two functions synchronized. Lastly there is no actual guarantee that the two functions are indeed each other inverse.
+Parsers and printers of a format should always be one the inverse of the other in order to ensure round-trip behavior, i.e.\ printing some data to a string
+and running the parser on it should give back the initial value. Similarly parsing a properly formatted file and printing it back should produce the original file.
+These two functions are usually defined independently, which has several drawbacks. Firstly it is a repetitive and error-prone task because the two functions follow the same format, secondly, as the format changes, the user is burdened with the task of keeping the two functions synchronized. Lastly there is no actual guarantee that the two functions are indeed each other's inverse.
+
+	\subsection{Type List}
+	\label{subsec:TypeList}
+	Haskell type system have been enhanced in GHC with
+	several extensions. The DataKind extension enables
+	user defined kinds, through datatype promotion, i.e.\
+	data types are automatically promoted to kinds and
+	their constructors to type constructors.
+	Among these list are natively promoted to kinds
+	and the same syntax used for value lists is lifted
+	to types. It should always be clear from the context
+	when a list is a value or a type; ambiguous cases
+	will be distinguished prefixing types with a quote.
+	The PolyKinds extension enables kind polymorphism.
+	Kind variables are always universally quantified implicitly,
+	furthermore kinds are inferred automatically,
+	therefore kind annotations are usually superfluous, 
+	however few will be left to help the reader.
+	
+	\paragraph{Examples}
+	The constructors for type level lists are kind polymorphic,
+	just like their value counterpart are polymorphic in the type.
+\begin{verbatim}
+*> :k '[]
+'[] :: [k]
+\end{verbatim}
+
+	Note however that they are homogeneous with respect to the kinds of 
+	their elements.
+\begin{verbatim}
+*> :k '[Int, Bool]
+'[Int, Bool] :: [*]
+*> :k '[Maybe, []]
+'[Maybe, []] :: [* -> *]
+\end{verbatim}
+	In the second example \texttt{[]} is the list type constructor.
+	
+	\paragraph{Type Family}
+	Common functions on lists can be lifted to the type level
+	using a \emph{closed type family}.
+
+	For example it is possible to append type level lists just like
+	it happens for concrete lists.
+	The type family contains a recursive call and it is defined
+	by induction on the first list, following closely that
+	of \texttt{(++) :: [ a ] -> [ a ] -> [ a ]}.
+\begin{minted}{haskell}	
+type family (:++:) (xs :: [ k ]) (ys :: [ k ]) :: [ k ] where
+  '[] :++: ys = ys
+  (x ': xs) :++: ys = x ': (xs :++: ys)
+\end{minted}
+
+	Note that just like the standard append is polymorphic in \texttt{a}, so its 
+	type level counter part is	kind polymorphic. 
+	Likewise the input and output lists share the same polymorphic kind 
+	\texttt{k}.
+	
+\begin{verbatim}
+*> :kind! '[Int, Bool] :++: '[Char, Double]
+'[Int, Bool] :++: '[Char, Double] :: [*]
+= '[Int, Bool, Char, Double]
+\end{verbatim}
+	
+	Analogously a type level map is easily defined:
+\begin{minted}{haskell}
+type family Map (f :: k1 -> k2) (xs :: [ k1 ]) :: [ k2 ] where
+  Map f '[] = '[] 
+  Map f (x ': xs) = f x ': Map f xs
+\end{minted}
+	
+	For example mapping the type constructor \texttt{[] :: * -> *} over a list
+	of types of kind \texttt{*} yields:
+	
+\begin{verbatim}
+*> :kind! Map [] '[Char, Int , Bool]
+Map [] '[Char, Int , Bool] :: [*]
+= '[[Char], [Int], [Bool]]
+\end{verbatim}
+
+	\paragraph{Heterogeneous List}
+	The data type \texttt{HList}, introduced by Kiselyov 
+	\cite{Kiselyov04stronglytyped}, is an heterogeneous list, 
+	indexed by a type level list. 
+	It differs from the conventional homogeneous list data type, because it 
+	contain values of possibly different types, which are all 
+	stored in its index.
+
+\begin{minted}{haskell}
+data HList (xs :: [ * ]) where
+  Nil :: HList '[] 
+  Cons :: x -> HList xs -> HList (x ': xs) 
+\end{minted}
+
+	The following functions will be assumed in the following.
+	Their implementation is clear from their
+	signatures and therefore omitted. 
+	Furthermore they are completely analogous to 
+	the correspondent functions for homogeneous lists.
+	
+\begin{minted}{haskell}
+hHead :: HList (x ': xs) -> x
+hsingleton :: x -> HList '[ x ]
+happend :: HList xs -> HList ys -> HList (xs :++: ys)
+\end{minted}
+
+	\paragraph{SList}
+	\emph{Singleton types} are needed to support dependently 
+	typed programming in languages with a strict phase separation
+	between run-time and compile time \cite{Eisenberg12DTPS}, like Haskell.
+	More precisely a singleton type is a type with only one non-$\bot$ value 
+	and represent a run-time witness of a type \cite{Eisenberg12DTPS}.
+	The type \texttt{SList xs} is the singleton type for the type level list 
+	\texttt{xs}.
+	
+\begin{minted}{haskell}
+data SList (xs :: [ * ]) where
+  SNil :: SList '[]
+  SCons :: SList xs -> SList (x ': xs)
+\end{minted}
+
+	Singleton types are essential to implement certain kind of functions,
+	especially when type families are involved.
+	Consider for instance the function \texttt{split}, which
+	splits an heterogeneous list in two parts:
+\begin{minted}{haskell}
+split :: HList (xs :++: ys) -> (HList xs, HList ys)
+\end{minted}
+
+	The indexes of the two output lists, \texttt{xs} and \texttt{ys},
+	come from the index of the input list, in which they are appended.
+	Crucially it is not possible to pattern match directly on it, because
+	of the presence of the type family application \texttt{xs :++: ys} in
+	its index:
+	should it be 	there a case for \texttt{Nil} or \texttt{Cons} ?
+	That depends on the result of \texttt{xs :++: ys}, 
+	however it is not possible to pattern match on it 
+	directly because it is just a type.
+	Nevertheless it is possible to implement this function if \texttt{xs}
+	is known to be empty or not.
+	A singleton type of type \texttt{SList xs}
+	introduces a true value, which can be inspected 
+	providing this piece of information about its index.
+	
+\begin{minted}{haskell}
+split :: SList xs -> HList (xs :++: ys) -> (HList xs, HList ys)
+split SNil hs = (Nil, hs) 
+split (SCons s) (Cons h hs) = (Cons h hs1, hs2)
+  where (hs1, hs2) = split s hs
+\end{minted}
+	By pattern matching on it the first part of the list can be distinguished from 
+	the second, so that the two can be separated.
+	Specifically when \texttt{xs} is empty the rest of the list belongs
+	to the second part, otherwise the head of the list belongs
+	to the first part.
+	
+	Often it will be necessary to retrieve a singleton type of a list-indexed data 
+	type. The type class \texttt{Reify} is defined for this purpose:
+	
+\begin{minted}{haskell}
+class Reify (f :: [ * ] -> *) where
+  toSList :: f xs -> SList xs
+\end{minted}
+
+	For example it is easy to make \texttt{HList} instance of \texttt{Reify}:
+\begin{minted}{haskell}
+instance Reify HList where
+  toSList Nil = SNil
+  toSList (Cons _ hs) = SCons (toSList hs)
+\end{minted}	
+	
+\subsection{Partial Isomorphism}	
+\label{subsec:PartIso}
+Parsers do not only recognize a grammar in an input string, but usually
+produce an abstract syntax tree, so that the structured data can be
+then processed more conveniently. 
+Typically abstract syntax trees are represented directly as a domain
+specific user-defined data type. 
+On the contrary pretty printing requires to deconstruct the abstract syntax tree, in order to serialize each part appropriately.
+In order to unify parser and printer in a single entity, constructors
+and deconstructors of a data type must be coupled together.
+The partial isomorphism data type is used for this purpose.
+
+\begin{minted}{haskell}
+data Iso xs ys = Iso { apply    :: HList xs -> HList ys, 
+                       unapply  :: HList ys -> Maybe (HList xs)}
+\end{minted}
+
+A value of type \texttt{Iso xs ys} represents a partial isomorphism, consisting in the mapping \texttt{apply} and its partial inverse \texttt{unapply}.
+The second function is partial because a data type might have
+several constructors and therefore the deconstructor of
+a specific isomorphism could fail if the value has been
+constructed using another constructor.
+
+Partial isomorphisms form a category:
+\begin{minted}{haskell}
+identity :: Iso xs xs
+identity = Iso id Just
+
+(.) :: Iso ys zs -> Iso xs ys -> Iso xs zs
+(.) g f = Iso s t
+  where s = apply g . apply f
+          t = unapply g >=> unapply f
+\end{minted}
+
+\paragraph{Example} 
+As an example consider the two partial iomorphisms that correspond
+to list constructors and deconstructors. 
+
+\begin{minted}{haskell}
+nil :: Iso '[] '[ [a] ]
+nil = Iso f g
+  where f Nil = Cons [] Nil
+        g (Cons [] Nil) = Just Nil
+        g (Cons (_:_) Nil) = Nothing
+
+cons :: Iso '[a : [a]] '[ [a] ]
+cons = Iso f g
+  where f (Cons x (Cons xs Nil)) = Cons (x:xs) Nil
+        g (Cons [] Nil) = Nothing
+        g (Cons (x:xs) Nil) = Just (Cons x (Cons xs Nil))
+\end{minted}
 
 \section{Format}
-In this thesis the approach taken consists of implementing an EDSL which specifies two inverse semantics. The specification itself, is agnostic to the semantics, which can be chosen afterwards.
+\label{sec:Format}
+This thesis addresses the format problem presented in \ref{subsec:FormatIntro} by implementing an embedded domain specific language (EDSL) that describes two inverse semantics at once.
+The specification itself, is agnostic to the semantics, which is chosen afterwards instantiating appropriately a type parameter.
 
 Context-free parsers are usually defined using applicative 
 and alternative combinators. Since \texttt{Functor} is a superclass of \texttt{Applicative} and \texttt{Applicative} is a superclass of \texttt{Alternative}, any instance of the class \texttt{Alternative} yields
@@ -32,8 +277,7 @@ empty :: Alternative f => f a
 \end{minted} 
 % $
 
-
-Each of this combinator will be encoded as a constructor of the \texttt{Format} GADT. With an abuse of notation, the operators \texttt{<\$>}, \texttt{<*>}, \texttt{<|>}, will be used as the corresponding \texttt{Format} constructors. 
+Each of this combinator will be encoded as a constructor of the \texttt{Format} data type. With an abuse of notation, the operators \texttt{<\$>}, \texttt{<*>}, \texttt{<|>}, will be used as the corresponding \texttt{Format} constructors. 
 It should always be clear from the context which is which. 
 To keep the description clear, I will firstly discuss formats with token of type \texttt{Char} and stream of type \texttt{String}, then I will show the changes needed to support any kind of token and stream.
 
@@ -41,50 +285,13 @@ To keep the description clear, I will firstly discuss formats with token of type
 data Format (f :: * -> *) (xs :: [ * ]) where
 \end{minted}
 
-A value of type \texttt{Format f xs} has underlying semantics \texttt{f} and involve values of types \texttt{xs}. The kind \texttt{[ * ]} represents a kind-homogeneous list of types of kind \texttt{*}.
+A value of type \texttt{Format f xs} has underlying semantics \texttt{f} and involve values of types \texttt{xs}. Furthermore
+an instance of \texttt{Reify (Format f)} is assumed.
 
-The two inverse semantics are represented as an interpretation of this data-type.
+The two inverse semantics are represented as an interpretation of this data type.
 \begin{minted}{haskell}
 mkParser :: Alternative f => Format f xs -> f (HList xs)
 mkPrinter :: Alternative f => Format f xs -> HList xs -> f String
-\end{minted}
-
-The data-type \texttt{HList}, introduced by \cite{Kiselyov04stronglytyped}, is an heterogeneous list, indexed by a type-level list. It differs from plain list as it can contain values of different types, which are recorded in its index.
-\begin{minted}{haskell}
-data HList (xs :: [ * ]) where
-  Nil :: HList [] 
-  Cons :: x -> HList xs -> HList (x : xs) 
-\end{minted}
-
-The reason for using this particular data-type will be discussed in the following. We assume the presence of few functions to manipulate them:
-
-\begin{minted}{haskell}
-hsingleton :: a -> HList [ a ]
-happend :: HList xs -> HList ys -> HList (Append xs ys)
-split :: SList xs -> SList ys -> HList (Append xs ys) 
-      -> (HList xs, HList ys)
-\end{minted}
-
-The \texttt{SList xs} data-type, also indexed over a type-level list, is called \emph{singleton type}, that is a type with only one non-$\bot$ value \cite{Eisenberg12DTPS}. Since Haskell is not a fully-fledged dependently typed language, there is an actual separation between run-time values and compile-time types. Singleton types are needed to support dependently typed programming and are therefore used as a run-time witness of a type.
-
-\begin{minted}{haskell}
-data SList (xs :: [ * ]) where
-  SNil :: SList []
-  SCons :: SList xs -> SList (x:xs)
-\end{minted}
-
-The class \texttt{Reify} allows to reify types indexed by a type-level list and retrieve the corresponding singleton type.
-
-\begin{minted}{haskell}
-class Reify (f :: [ * ] -> *) where
-  toSList :: f xs -> SList xs
-\end{minted}
-
-It is possible to define the following instances:
-
-\begin{minted}{haskell}
-instance Reify HList where ...
-instance Reify (Format f) where ...
 \end{minted}
 
 \subsection{Functor Format}
@@ -97,50 +304,11 @@ data Format (f :: * -> *) (xs :: [ * ]) where
 %$
 
 The first argument is not a simple function, because we need to store 
-a function and its inverse. Therefore the \texttt{Iso} data-type is used:
+a function and its inverse. Therefore the \texttt{Iso} data type is used:
 
-\begin{minted}{haskell}
-data Iso xs ys = Iso { apply    :: HList xs -> HList ys, 
-                       unapply  :: HList ys -> Maybe (HList xs), 
-                       sapply   :: SList xs, 
-                       sunapply :: SList ys }
-\end{minted}
-
-A value of type \texttt{Iso xs ys} represents a partial isomorphism, consisting in the mapping \texttt{apply} and its partial inverse \texttt{unapply}.
-The two singleton types can be ignored for the moment, as they are only needed to conveniently combine simple isomorphisms into more complex ones.
-
-Partial isomorphisms form a category:
-\begin{minted}{haskell}
-identity :: SList xs -> Iso xs xs
-identity s = Iso id Just s s
-
-(.) :: Iso ys zs -> Iso xs ys -> Iso xs zs
-(.) g f = Iso s t (sapply f) (sunapply g)
-  where s = apply g . apply f
-        t = unapply g >=> unapply f
-\end{minted}
-
-\paragraph{Example} Two examples of partial isomorphism that will be used in the following are list's constructors and deconstructors.
-
-\begin{minted}{haskell}
-nil :: Iso [] ([a] : [])
-nil = Iso f g SNil (SCons SNil)
-  where f Nil = Cons [] Nil
-        g (Cons [] Nil) = Just Nil
-        g (Cons (_:_) Nil) = Nothing
-
-cons :: Iso (a : [a] :[]) ([a] : [])
-cons = Iso f g (SCons (SCons SNil)) (SCons SNil)
-  where f (Cons x (Cons xs Nil)) = Cons (x:xs) Nil
-        g (Cons [] Nil) = Nothing
-        g (Cons (x:xs) Nil) = Just (Cons x (Cons xs Nil))
-\end{minted}
-
-The inverse projector must be partial, because a data-type may have
-more constructors, and it is possible to deconstruct it using a specific isomorphism only if the constructor match.
 
 A parser \texttt{f <\$> p} apply the pure function \texttt{f} to the result of the parser \texttt{p}. If the parser \texttt{p} fails, also \texttt{f <\$> p} fails.
-The corresponding parsing semantics have exactly the same behavior:
+This behaviour is accordingly translated in the parsing semantics have exactly:
 
 \begin{minted}{haskell}
 mkParser (i <$> f) = apply i <$> mkParser f
@@ -148,12 +316,12 @@ mkParser (i <$> f) = apply i <$> mkParser f
 
 Note that \texttt{apply i} is a pure function.
 
-When printing \texttt{i <\$> f} the given list is deconstructed using the inverse partial isomoprhism (\texttt{unapply}). If it fails the whole printer fails, otherwise the result is used as input to the printer derived from \texttt{f}.
+When printing the format \texttt{i <\$> f}, the input list is deconstructed using the inverse partial isomoprhism (\texttt{unapply}). If it fails the whole printer fails, otherwise the result is used as input to the printer derived from \texttt{f}.
 
 \begin{minted}{haskell}
 mkPrinter (i <$> f) hs = 
   case unapply i hs of
-    Just ys -> mkPrinter f hs
+    Just ys -> mkPrinter f ys
     Nothing -> empty
 \end{minted}
 %$
@@ -170,61 +338,61 @@ infixr 4 <$>
 The constructors corresponding to the applicative combinators are defined as follows:
 
 \begin{minted}{haskell}
-data Format (f :: * -> *) (xs :: [ * ]) where
+data Format f xs where
   ...
   Pure :: HList xs -> Format i xs
-  (<*>) :: Format f xs -> Format f ys -> Format f (Append xs ys)
+  (<*>) :: Format f xs -> Format f ys -> Format f (xs :++: ys)
 \end{minted}
 
-The type-level function \texttt{Append} corresponds to \texttt{(++)} for type-level lists. It is defined recursively by induction as a closed type family:
-
-\begin{minted}{haskell}
-type family Append (xs :: [ * ]) (ys :: [ * ]) :: [ * ] where
-  Append []       ys = ys
-  Append (x : xs) ys = x : Append xs ys
-\end{minted}
-
-The type of \texttt{<*>} is slightly different from the standard applicative definition given previously.
-This alternative version is actually equivalent, being the \texttt{$\star$} operator from the class \texttt{Monoidal} discussed by McBride and Paterson’s in \cite{Mcbride08Ape}, revisited to use \texttt{HList} instead of tuples.
+The signature of \texttt{<*>} is slightly different from the standard 
+one given in the \texttt{Applicative} class shown previously.
+This alternative version is actually equivalent, being the  \texttt{$\star$} 
+operator from the class \texttt{Monoidal} proposed by McBride and Paterson’s 
+\cite{Mcbride08Ape}, revisited to use \texttt{HList} instead of tuples.
+Also Fokker employs this version in his lecture notes 
+\cite{Fokker}.
 This symmetric version is more convenient for our purposes therefore it has been preferred over the original one.
 
-The parsing semantics function is defined as:
+The parsing semantics function is standard:
 \begin{minted}{haskell}
 mkParser (Pure hs) = pure hs
-mkParser (p1 <*> p2) = happend <$> mkParser p1 <*> mkParser p2
+mkParser (f1 <*> f2) = happend <$> mkParser f1 <*> mkParser f2
 \end{minted} 
 % $
-In a parser the expression \texttt{pure x} corresponds to a parser that always returns \texttt{x} without consuming any input, whereas \texttt{f1 <*> f2} firstly applies the first parser and then applies the second on the remaining input. 
+The format \texttt{Pure hs} is translated to a parser that always returns \texttt{hs} without consuming any input, while the format
+\texttt{f1 <*> f2} is converted in a parser that firstly applies the parser of \texttt{f1} and then runs the one of \texttt{f2} on the remaining input. The function \texttt{happend} appends the two lists produced by the parsers toghether, as it is required by the signature of \texttt{<*>}.
+The parser \texttt{pure x} never fails, while \texttt{f1 <*> f2}
+fails if any of the two fails.
 
-The semantics for the corresponding printer is given by:
+Analogously the semantics for the corresponding printer is given by:
 \begin{minted}{haskell}
 mkPrinter (Pure _) _ = pure ""
-mkPrinter (f1 <*> f2) hs 
-	= (++) <$> mkPrinter f1 hs1 <*> mkPrinter f2 hs2
-    where (hs1, hs2) = split (toSList f1) (toSList f2) hs
+mkPrinter (f1 <*> f2) hs = (++) <$> mkPrinter f1 hs1 <*> mkPrinter f2 hs2
+  where (hs1, hs2) = split (toSList f1) hs
 \end{minted} 
 %$
-In the \texttt{pure} case conversely, the empty string is returned, because no input is consumed by the corresponding parser.
-Similarly in the \texttt{<*>} case the two strings produced by the two formats are appended, in order to invert the effect of the corresponding parser.
+In the \texttt{pure} case the empty string is returned, because no input is consumed by the corresponding parser.
+Similarly in the \texttt{<*>} case the two strings produced by the two formats are appended in the same order, to invert the effect of the corresponding parser.
 
-It is straightforward to see that \texttt{mkPrinter} and \texttt{mkParser} are are inverse for these constructors.
+It is straightforward to show that \texttt{mkPrinter} and \texttt{mkParser} represent each other's inverse for the applicative combinators.
 
 \subsection{Alternative Format}
-The constructors corresponding to the alternative combinators are defined as follows:
+The constructors that corresponds to the alternative combinators 
+have the following signatures:
 
 \begin{minted}{haskell}
-data Format (f :: * -> *) (xs :: [ * ]) where
+data Format f xs where
   ...
   Empty :: SList xs -> Format i xs
   (<|>) :: Format f xs -> Format f xs -> Format f xs
 \end{minted}
 
 The parser combinator \texttt{<|>} represents choice between parsers.
-The parser \texttt{empty} always fails without consuming any input and it's 
+The parser \texttt{empty} always fails without consuming any input and it is 
 the identity of \texttt{<|>}.
 
-The precise semantics of the choice combinator is most of the time library-dependent and some care is needed to ensure proper invertibility. 
-This issue is discusses in more depth in \ref{sec:Discussion}.
+The specific semantics of the choice combinator is most of the time library-dependent and some care is needed to ensure proper invertibility. 
+This issue is discusses in more depth in \ref{subsec:Discussion}.
 
 The parsing and printing functions just reuse the alternative combinators
 of the underlying semantics.
@@ -238,20 +406,21 @@ mkPrinter (f1 <|> f2) hs = mkPrinter f1 hs <|> mkPrinter f2 hs
 \end{minted}
 
 \subsection{Token Format}
-Applicative parser libraries usually provide a primitive function to retrieve the next token in the stream, normally typed:
+Parsing libraries usually provide a primitive function to retrieve the next token in the stream, whose type signature is usually:
 \begin{minted}{haskell}
 pSatisfy :: (Char -> Bool) -> Parser Char
 \end{minted}
 
-If the next token in the stream satisfies the predicate it is returned, otherwise the parser fails.
+If the next token in the stream satisfies the predicate then it is returned, otherwise the parser fails.
 A corresponding constructor is added to \texttt{Format}:
 
 \begin{minted}{haskell}
-data Format (f :: * -> *) (xs :: [ * ]) where
+data Format f xs where
+  ...
   Satisfy :: (Char -> Bool) -> Format f '[ Char ]
 \end{minted}
 
-The specific primitive used to produce the next token, depends on the on the actual parsing library at hand, therefore an hook is provided in the form of a type class.
+The specific primitive used to produce the next token, depends on the on the actual parsing library at hand, therefore a hook is provided in the form of a type class.
 
 \begin{minted}{haskell}
 class ParseSatisfy f where
@@ -272,43 +441,45 @@ mkPrinter (Satify p) (Cons c Nil)
   | otherwise = empty
 \end{minted}
 
-\section{Example}
+\subsection{Example}
 This section presents few examples that can be already implemented with the \texttt{Format} just defined.
 
-\subsection{Trivial Format}
+\paragraph{Trivial Format}
 A \emph{trivial format }is a format parametrized by the empty type-level list.
 The parser produced by a trivial format upon success produces the empty \texttt{HList}. The constant partial isomorphism \texttt{ignore} is used to construct trivial formats.
 
 \begin{minted}{haskell}
-ignore :: HList xs -> Iso xs []
+ignore :: HList xs -> Iso xs '[]
 ignore hs = Iso f g (toSList hs) SNil
   where f _ = Nil
-        g _ = Just hs
+         g _ = Just hs
 \end{minted}
 The isomorphism maps any input to the empty list and maps the empty list back to the given list. As a consequence the printer of a trivial format never fails\footnote{A case which requires special care is discussed in section \ref{subsec:Many}}.
 
-Essentially a trivial format contains only static information, therefore parsing a trivial format merely comes down to checking the presence of a certain pattern, and printing consists of outputting it.
+Essentially a trivial format contains only static information: its
+parser merely checks the presence of a certain pattern, and its printer
+just outputs it.
 
-As an example of trivial format, consider the format \texttt{char c} which recognizes a specific character.
+An example of trivial format is the format \texttt{char c} which recognizes a specific character.
 
 \begin{minted}{haskell}
-char :: Char -> Format f []
+char :: Char -> Format f '[]
 char c = ignore (hsingleton c) <$> satisfy (c ==)
 \end{minted}
 %$
 
-The trivial format \texttt{string s} recognizes a specific string and can be derived repeatedly applying \texttt{char}.
+The trivial format \texttt{string s} recognizes a specific string and can be obtained by repeatedly applying \texttt{char}.
 
 \begin{minted}{haskell}
-string :: String -> Format f []
+string :: String -> Format f '[]
 string [] = unit
 string (c:cs) = char c <*> string cs
 \end{minted}
 
-Where \texttt{unit} is the trivial format that always succeeds producing
-the empty \texttt{HList}, that does not consume any input when parsing and that does not print nothing at all.
+The trivial format \texttt{unit} always succeeds producing
+the empty \texttt{HList}. It does not consume any input when parsing and that does not output nothing at all when printing.
 \begin{minted}{haskell}
-unit :: Format f []
+unit :: Format f '[]
 unit = Pure Nil
 \end{minted}
 
@@ -317,7 +488,7 @@ Other two useful combinators, included in the \texttt{Applicative} class are:
 (<*) :: f a -> f b -> f a
 (*>) :: f a -> f b -> f b
 \end{minted}
-They are used to apply a parser and then discard its result.
+They are used to run a parser and then discard its result.
 In this setting, these combinators would have the following signatures:
 \begin{minted}{haskell}
 (<*) :: Format f xs -> Format f ys -> Format f xs
@@ -327,26 +498,27 @@ This degree of generality cannot be achieved because, due to the double  semanti
 However it is possible to discard trivial formats, because they do not require any input value.
 The operator \texttt{(<*)} is implemented as:
 \begin{minted}{haskell}
-(<*) :: Format f xs -> Format f [] -> Format f xs
+(<*) :: Format f xs -> Format f '[] -> Format f xs
 p <* q = 
   case rightIdentityAppend (toSList p) of
     Refl -> p <*> q
 \end{minted}
-Firstly note that this operator is simply implemented as \texttt{<*>}, thus
+First of all note that this operator is simply implemented as \texttt{<*>}, thus
 this operator works only at the type level.
-Using \texttt{p <*> q} directly would not work, because it would raise a type error: contrary to our intuition the type checker complains about not being able to unify \texttt{xs} with \texttt{Append xs []}.
-In order to convince the type checker of this fact, a proof about \texttt{Append} is required.
-The function \texttt{rightIdentityAppend} produces for any type-level list \texttt{xs} the proof that the empty list \texttt{[]} is right identity to \texttt{Append}.
-The proof is by induction on \texttt{xs}:
+However the expression \texttt{p <*> q} alone is rejected by the 
+type checker: counterintuitively \texttt{xs} does not unify with \texttt{xs :++: []}.
+In order to convince the type checker of this fact, a \emph{proof} about \texttt{:++:} is required.
+The function \texttt{rightIdentityAppend} produces for any type-level list \texttt{xs} the proof that the empty list \texttt{'[]} is right identity to append.
+The proof is by induction on \texttt{xs} and hence require its singleton type:
 \begin{minted}{haskell}
-rightIdentityAppend :: SList xs -> Append xs [] :~: xs
+rightIdentityAppend :: SList xs -> xs :++: '[] :~: xs
 rightIdentityAppend SNil = Refl
 rightIdentityAppend (SCons s) = 
   case rightIdentityAppend s of
     Refl -> Refl
 \end{minted}
 
-The data-type (a : $\sim$ : b) represents propositional equality. Pattern matching on it produces a proof that \texttt{a} is equal to \texttt{b}.
+The data type \texttt{a :\textasciitilde: b} represents propositional equality. Pattern matching on it brings into scope the constraint \texttt{a \textasciitilde\ b}: a proof for the type checker that \texttt{a} is equal to \texttt{b}.
 
 \begin{minted}{haskell}
 data a :~: b where
@@ -357,7 +529,7 @@ A similar reasoning applies for \texttt{*>}.
 
 \subsection{Kleene operators}
 \label{subsec:Many}
-In parsing libraries the combinator \texttt{many} corresponds to the Kleene Star operator and the combinator \texttt{some} to Kleene Plus. The parser \texttt{many p} succeeds if \texttt{p} succeeds zero or more times. Similarly the parser \texttt{some p} succeeds if \texttt{p} succeeds at least once.
+In parsing libraries the combinator \texttt{many} corresponds to the Kleene star operator and the combinator \texttt{some} to Kleene plus. The parser \texttt{many p} succeeds if \texttt{p} succeeds zero or more times. Similarly the parser \texttt{some p} succeeds if \texttt{p} succeeds at least once.
 The default implementation of these combinators is part of the \texttt{Alternative} class. 
 \begin{minted}{haskell}
 some :: Alternative f => f a -> f [ a ]
@@ -373,16 +545,6 @@ Their format counterpart has the following signature:
 many, some :: Format f xs -> Format f (Map [] xs)
 \end{minted}
 
-Where \texttt{Map} is the type-level \texttt{map} for lists:
-\begin{minted}{haskell}
-type family Map (f :: * -> *) (xs :: [ * ]) :: [ * ] where
-  Map f [] = []
-  Map f (x : xs) = f x : Map f xs
-\end{minted}
-
-In the type \texttt{Map [] xs}, the symbol \texttt{[]} is the type constructor for plain homogeneous lists and has kind \texttt{* -> *}.
-For instance the type \texttt{Map [] [Char, Bool, Int]} corresponds to the type-level list \texttt{[[Char], [Bool], [Int]]}.
-
 Their definition follows the same mutually recursive pattern:
 \begin{minted}{haskell}
 some f = allCons (toSList f) <$> f <*> many f
@@ -394,7 +556,7 @@ The partial isomorphisms \texttt{allEmpty} and \texttt{allCons} have the followi
 
 \begin{minted}{haskell}
 allEmpty :: SList xs -> Iso [] (Map [] xs)
-allCons :: SList xs -> Iso (Append xs (Map [] xs)) (Map [] xs)
+allCons :: SList xs -> Iso (xs :++: (Map [] xs)) (Map [] xs)
 \end{minted}
 
 % allEmpty SNil = identity SNil
@@ -409,58 +571,66 @@ allCons :: SList xs -> Iso (Append xs (Map [] xs)) (Map [] xs)
 
 The isomorphism \texttt{allCons} corresponds to \texttt{(:)} for simple lists.
 When applied it merges the heads (\texttt{xs}) with the corresponding tails (\texttt{Map [] xs}) applying repeatedly the partial isomorphism \texttt{cons}.
-When unapplied it splits the given lists (\texttt{Map [] xs}), in heads (\texttt{xs}) and tails (\texttt{Map [] xs}) using the \texttt{cons} deconstructor (unapply). If any of the lists is empty the isomorphism fails.
+When unapplied it splits the given lists (\texttt{Map [] xs}), in heads (\texttt{xs}) and tails (\texttt{Map [] xs}) using the \texttt{cons} deconstructor (\texttt{unapply}). If any of the lists is empty the isomorphism fails.
 Lastly it appends the two resulting \texttt{HList}.
 
 Similarly the isomorphism \texttt{allEmpty}, when applied, produces an \texttt{HList} of empty lists (\texttt{Map [] xs}), applying repeatedly the partial isomorphism \texttt{nil}. When unapplied produces the empty \texttt{HList} after checking with the deconstructor \texttt{nil} that all the lists are actually empty. If any of them is non-empty the isomorphism fails.
 
-Note that if the parser produced by \texttt{some} and \texttt{many} succeeds, it will produce lists of the same length. Similarly the corresponding printer will fail if the lists provided do not have all the same length.
+Note that if the parser produced by \texttt{some} and \texttt{many} succeeds, it will produce lists of the same length. Similarly the corresponding printer will fail if the lists provided have different lengths.
 
 \paragraph{Termination}
-
+\label{par:Termination}
 Particular care must be taken when combining \texttt{many} and \texttt{some}
-with \emph{trivial} formats. Applying either \texttt{many} or \texttt{some} to a trivial format results in a trivial format, because \texttt{Map [] []} is \texttt{[]}. For instance:
+with \emph{trivial} formats. Applying either \texttt{many} or \texttt{some} to a trivial format results in a trivial format, because \texttt{Map [] '[]} equals \texttt{'[]}, like for instance:
 \begin{minted}{haskell}
-spaces :: Format f []
+spaces :: Format f '[]
 spaces = many (char ' ')
 \end{minted}
 
-The parser for this format shows the desired behavior, however the corresponding printer loops, without producing any space.
+The parser for this format shows the desired behavior, however the corresponding printer loops, without producing any spaces.
 
-The mutually recursive definition of \texttt{many} and \texttt{some}, just like their \texttt{Alternative} counterpart, terminates only under certain conditions.
-The input string analyzed by a parser is always finite, therefore if the parser \texttt{p} consumes at least one token, the parser \texttt{many p} will eventually terminate, because the \texttt{some} parser can succeed only a finite number of times, after which only the alternative \texttt{pure []} will succeed. If this condition is not satisfied the parser \texttt{many p} will loop. 
-For instance :
+In fact the mutually recursive definition of \texttt{many} and \texttt{some},  terminates only under
+the condition that the repeated action will eventually fail.
+For parsers this condition can be easily checked.
+If the parser \texttt{p} consumes at least one token, the parser \texttt{many p} will eventually terminate: since the input string is finite, \texttt{some p} 
+can succeed only a finite number of times, after which only the alternative \texttt{pure []} will succeed.
+On the contrary if \texttt{p} does not consume any input the parser
+\texttt{many p} will hang.
 
-\begin{minted}{haskell}
-loop :: Alternative f => f [Char]
-loop = many (pure 'a')	
-\end{minted}
+Note that this behaviour is exactly the same for any type
+instance of \texttt{Alternative} that use the default implementation
+of \texttt{many} and \texttt{some}:
+\begin{verbatim}
+*> many (pure ⊥) :: Maybe [a]
+*** Exception: <<loop>>
+\end{verbatim}
 
-Similarly, when printing the format \texttt{many p} of type \texttt{Format f (Map [] xs)}, the lists provided are always finite, therefore the \texttt{p} printer can succeed only a finite number of time and the function will eventually terminate.
-However when \texttt{xs} is \texttt{[]}, the \emph{trivial} format \texttt{p} always succeeds, which, combined with \texttt{many} or \texttt{some} leads to non-termination.
-With the current definition \texttt{p} is repeatedly unapplied, without consuming any input value (there is no input value, being a trivial format).
-As a result the \texttt{spaces} printer would hang building an infinite list of \texttt{' '}.
+Analogously, when printing the format \texttt{many p} of type \texttt{Format f (Map [] xs)}, the lists provided are always finite, therefore the \texttt{p} printer can succeed only a finite number of time and the function will eventually terminate.
+However when \texttt{xs} is empty, i.e.\ \texttt{'[]}, the \emph{trivial} format \texttt{p} always succeeds, which, combined with \texttt{many} and \texttt{some} leads to non-termination.
+As a result the \texttt{spaces} printer hangs, while building an infinite list of spaces.
 
-In order to ensure termination also for these formats, the semantics for \texttt{many} and \texttt{some} when combined with \emph{trivial formats} 
-has been adjusted as follows. 
+In order to ensure termination also for these formats, the inverse 
+semantics for \texttt{many} and \texttt{some} when combined with \emph{trivial formats} has been adjusted as follows. 
 
 The function \texttt{atMost n f k} is used to override the behavior of
-combinators such as \texttt{many} and \texttt{some}, represented by \texttt{k}, precisely allowing to \texttt{unapply}
- the given format \texttt{f} at most \texttt{n} times.
+possibly non-terminating combinators such as \texttt{many} and \texttt{some}, represented by \texttt{k}, precisely allowing to \texttt{unapply} the given format \texttt{f} at most \texttt{n} times.
 
 \begin{minted}{haskell}
 atMost :: Int -> Format f [] 
        -> (forall xs . Format f xs -> Format f (Map [] xs))
        -> Format f []
 atMost n f k = ignore hs <$> (k  (f *> Pure hs))
-  where  hs :: HList [ [a] ]    
-    hs = hsingleton $ replicate n undefined
+  where  hs :: HList '[ [a] ]    
+          hs = hsingleton (replicate n ⊥)
 \end{minted}
+%$
 
 Firstly the \emph{trivial} format \texttt{f} is transformed in a \emph{non-trivial} format with \texttt{f *> Pure hs}. As a result also the format \texttt{k ((f *> Pure hs)} is \emph{non-trivial} and thus terminating.
 Note that the presence of \texttt{Pure} does not affect parsing nor printing, which is instead carried out by \texttt{f}. Using \texttt{ignore hs} the \emph{non-trivial} format is lastly transformed back in a \emph{trivial} format.
-The list \texttt{hs} is responsible for the peculiar semantics of \texttt{atMost}.
-Exploiting Haskell lazyness a list of \texttt{n} \texttt{undefined} objects of type \texttt{a} is constructed. When printing the number of objects contained in this list corresponds to the number of times that the format \texttt{f} is unapplied. Since \texttt{f} is \emph{trivial} it will not inspect these values, therefore no run-time failure will occur.
+The list \texttt{hs} contains \texttt{n} bottom objects of type \texttt{a} and it
+is responsible for the peculiar semantics of \texttt{atMost}.
+The number of objects contained in this list corresponds to the number of times that the format \texttt{f} is unapplied when printing. Since \texttt{f} is \emph{trivial} it will not inspect these values, therefore, thanks
+to Haskell lazy semantics, no run-time failure will occur.
 
 The combinators \texttt{many} and \texttt{some} are redefined as follow.
 \begin{minted}{haskell}
@@ -472,16 +642,14 @@ many f =
 
 some :: Format f xs -> Format f (Map [] xs)
 some f = case toSList f of
-    SNil -> atMost 0 f somePrim
+    SNil -> atMost 1 f somePrim
     _    -> somePrim f
 \end{minted}
 
-Where \texttt{manyPrim} and \texttt{somePrim} correspond to the previous definition of \texttt{many} and \texttt{some}.
-The semantics of \texttt{many} and \texttt{some} for non-trivial formats is unchanged, for \emph{trivial} formats, the corresponding printer will unapply 
-format \texttt{f} respectively 0 and 1 times.
-The motivation for this semantics is to output the shortest string that can be matched by the inverse parser.
-
-Note that the format combiantor \texttt{atMost} can also be used to fine-tune arbitrary formats and build pretty-printers.
+The functions \texttt{manyPrim} and \texttt{somePrim} correspond to the previous definition of \texttt{many} and \texttt{some}.
+The semantics of \texttt{many} and \texttt{some} for non-trivial formats is unchanged, while \emph{trivial} formats will be printed \texttt{f} respectively 0 and 1 times.
+The motivation for this semantics is to output the shortest string that can be matched by the corresponding parser.
+Furthermore note that the function \texttt{atMost} can also be used to fine-tune arbitrary formats, for example to implement pretty-printers.
 
 \paragraph{Example}
 Consider these two \emph{trivial} formats:
@@ -493,7 +661,8 @@ spaces1 :: Format f []
 spaces1 = some (char ' ')
 \end{minted}
 
-When printed they will have these effects:
+When printed they will produce a finite string, respectively containing zero and
+one space, instead of hanging:
 \begin{minted}{haskell}
 *> mkPrinter spaces0 Nil :: Maybe String
 Just ""
@@ -502,60 +671,9 @@ Just " "
 \end{minted}
 
 \section{Extensions}
-In this section some extensions are incrementally added to the core framework discussed previously. They make this tool more flexible and usable in practice.
-
-\subsection{Token and Stream}
-Formats are roughly divided in text and binary formats, which determine what type of tokens needs to be recognized and consequently what kind of stream 
-must be provided. As a consequence the framework presented must be adapted to be parametric in the token and stream type.
-
-The \texttt{Format} data-type is firstly extended with an additional type parameter that encodes the token type. The constructor \texttt{Satisfiy} is then
-adapted to to use this type.
-
-\begin{minted}{haskell}
-data Format (f :: * -> *) (i :: *) (xs :: [ * ]) where
-  (<$>) :: Iso xs ys -> Format f i xs -> Format f i ys
-  Pure :: HList xs -> Format f i xs
-  (<*>) :: Format f i xs -> Format f i ys -> Format f i (Append xs ys)
-  Empty :: SList xs -> Format f i xs
-  (<|>) :: Format f i xs -> Format f i xs -> Format f i xs
-  Satisfy :: (i -> Bool) -> Format f i [ i ]
-\end{minted}
-%$
-
-Similarly anither parameter is added to the \texttt{ParseSatisfy} class:
-\begin{minted}{haskell}
-class ParseSatisfy f i where
-	satisfy :: (i-> Bool) -> f i
-\end{minted}
-and the signature for \texttt{mkParser} is adapted as follows:
-\begin{minted}{haskell}
-mkParser :: (ParseSatisfy f i, Alterntaive f) 
-          => Format f xs -> f (HList xs)
-\end{minted} 
-
-In the printing semantics the tokens produced must be combined to produce a stream. Another type class relates the token type with the stream type.
-Furthermore the methods \texttt{mconcat} and \texttt{mempty} from the \texttt{Monoid} class are used to for the \texttt{Applicative} combinators.
-
-\begin{minted}{haskell}
-class PrintToken f i s where
-  printToken :: i -> f s 
-\end{minted}
-
-The function \texttt{mkPrinter} is consequently adapted:
-
-\begin{minted}{haskell}
-mkPrinter :: (PrintToken f i s, Monoid s, Alternative f) 
-           => Format f i xs -> f s
-...
-mkPrinter (Satisfy p) (Cons x Nil)
-  | p x       = printToken x
-  | otherwise = empty
-mkPrinter (Pure _) _  = pure mempty
-mkPrinter (f1 <*> f2) hs 
-    = mappend <$> mkPrinter f1 hs1 <*> mkPrinter f2 hs2
-  where (hs1, hs2) = split (toSList f1) (toSList f2) hs
-\end{minted}
-%$
+\label{sec:Extensions}
+In this section several extensions are incrementally added to the core framework discussed previously. They make the library 
+more flexible and usable in practice.
 
 \subsection{Monadic Format}
 \label{subsec:Monadic}
@@ -563,11 +681,12 @@ Formats often need to be self-contained, therefore they include meta-data in the
 
 \paragraph{Example}
 The NetPbm is a family of formats that encodes images as a bitmap. 
-The Portable BitMap (PBM) format contains a magic number (P1), two numbers $n$ and $m$ that represents the dimensions of the image, followed by a bitmap of $n \times m$ bits, which encodes the color (0 for white, 1 for black). In order to parse each row in the bitmap correctly, the dimensions parsed in the header must be taken into account.
+The Portable BitMap (PBM) includes a header that contains a magic number (P1) and two numbers $n$ and $m$ that represents the dimensions of the image. The header is followed by a bitmap of of $n \times m$ bits, which encodes the color of each bit (0 for white, 1 for black). In order to parse each row in the bitmap correctly, its dimensions must be taken into account.
 
-This form of context-sensitive parsing cannot be expressed with applicative (context-free) parsers, but a strictly more expressive class of monadic parsers is needed. This motivates the introduction of this extension.
+A context-sensitive grammar cannot be recognized by applicative (context-free) parsers, but requires monadic parsers, which are 
+strictly more expressive. The need of such class of parsers motivates this extension.
 
-Context-sensitive parsers are instance of \texttt{Monad} class.
+Context-sensitive parsers are instance of the \texttt{Monad} class:
 
 \begin{minted}{haskell}
 class Applicative m => Monad m where
@@ -576,73 +695,80 @@ class Applicative m => Monad m where
   fail :: String -> m a
 \end{minted}
 
-The function \texttt{return} lifts a value in the monad and \texttt{fail}
-aborts the computation with the given error message.
+The function \texttt{return} lifts a value into the monad and \texttt{fail}
+aborts the computation with an error message.
 The binding operator \texttt{>>=} allows to inspect the value of the first computation and take actions based on it.
 
-The data-type \texttt{Format} is extended with these new constructors:
+The data type \texttt{Format} is extended with these new constructors:
 
 \begin{minted}{haskell}
-data Format (f :: * -> *) (xs :: [ * ]) where
+data Format f xs where
+  ...
   Return :: HList xs -> Format f xs
   Fail :: String -> Format f xs
-  Bind :: SList ys -> Format f xs -> (HList xs -> Format f ys) 
-        -> Format f (Append xs ys)
+  (>>=) :: Format f xs -> (HList xs -> Format f ys) -> Format f (xs :++: ys)
 \end{minted}
 
-The main difference lies in the \texttt{Bind} constructor which encodes \texttt{(>>=)}. Its resulting type-level list it's \texttt{Append xs ys}
-instead of simply \texttt{ys}, because when printing some input values 
-must be provided also for the first format.
-The singleton type \texttt{SList ys} is needed in order to \texttt{split} 
-the input list  when printing. Even though \texttt{Format} is part of the class
-\texttt{Reify}, an explicit object is needed because the bind operator is high-order, therefore the second format, indexed by \texttt{ys}, is out of reach.
+The only remarkable difference is the type signature of the \texttt{Bind} constructor, which encodes \texttt{(>>=)}. 
+The resulting type-level list is \texttt{xs :++: ys},
+instead of only \texttt{ys}, because the input values relative to the first parser 
+must be printed back, in order to correctly invert this parser.
 
-In order to implement monadic formats naturally a smart constructor for \texttt{Bind} is defined:
-\begin{minted}{haskell}
-(>>=) :: KnownSList ys => Format m xs -> (HList xs -> Format m ys) 
-       -> Format m (Append xs ys)
-m >>= k = Bind sList m k
-\end{minted}
+%In addition the \texttt{Bind} constructor takes as an additional argument,
+%the singleton type relative to the second format (\texttt{SList ys}).
+%This  is needed in order to \texttt{split} 
+%the input list  when printing. Even though \texttt{Format} is part of the class
+%\texttt{Reify}, an explicit object is needed because the bind operator is high-order, therefore the second format, indexed by \texttt{ys}, is out of reach.
+%
+%In order to implement monadic formats naturally a smart constructor for \texttt{Bind} is defined:
+%\begin{minted}{haskell}
+%(>>=) :: KnownSList ys => Format m xs -> (HList xs -> Format m ys) 
+%       -> Format m (Append xs ys)
+%m >>= k = Bind sList m k
+%\end{minted}
 
 The parser and printing semantics are adapted to include also the \texttt{Monad} constraint and the new cases are defined accordingly.
 \begin{minted}{haskell}
 mkParser :: (Monad m, Alternative m) => Format m xs -> m (HList xs)
 mkParser (Return hs) = return hs
 mkParser (Fail msg) = fail msg
-mkParser (Bind _ m f) = do
-  hs1 <- m
-  hs2 <- f hs1
+mkParser (f1 >>= k) = do
+  hs1 <- f1
+  hs2 <- k hs1
   return (happend hs1 hs2)
 
 mkPrinter :: (Monad m, Alternative m) => Format m xs -> HList xs -> m String
 mkPrinter (Return _) hs = return ""
 mkPrinter (Fail msg) _ = fail msg
-mkPrinter (Bind s2 m1 f) hs 
-    = (++) <$> mkPrinter m1 hs1 <*> mkPrinter m2 hs2
-  where (hs1, hs2) = split (toSList m1) s2 hs
-       m2 = f hs1 
+mkPrinter (f1 >>= k) hs = (++) <$> mkPrinter f1 hs1 <*> mkPrinter f2 hs2
+  where (hs1, hs2) = split (toSList f1) hs
+          f2 = k hs1 
 \end{minted}
 % $
 
 \paragraph{Example}
-To demonstrate the use of monadic formats, the format PBM is defined here.
-For ease of exposition the text-based encoding is discussed.
+The implementation of the PBM format is given in this paragraph
+as an example of monadic formats.
+For ease of exposition the text-based encoding is considered.
 
 \begin{minted}{haskell}
-pbmFormat :: Format m [Int, Int, [[Char]]]
+pbmFormat :: Format m '[Int, Int, [[Char]]]
 pbmFormat = pbmHeader >>= \(Cons n (Cons m Nil)) -> pBitmap n m
 \end{minted}
 
-The header of a pbm file contains the magic number and the two dimensions.
-
+The header of a pbm file contains the magic number and two integers that represent the number of rows and columns of the bitmap.
+	
 \begin{minted}{haskell}
-pbmHeader :: Format m [Int, Int]
+pbmHeader :: Format m '[Int, Int]
 pbmHeader = p1 *> int <*> (whitespace *> int <* whitespace)
   where p1 = string "P1" *> whitespace 
 \end{minted}
 
-The format \texttt{int} is a simple formats that reads an integer from a string.
-The format \texttt{whitespace} is defined as :
+Since the magic number is statically know, \texttt{p1} is a \emph{trivial} 
+format.
+The format \texttt{int} is a simple formats that converts a non-empty string of digits into an integer.
+The format \texttt{whitespace} consumes white space characters when 
+parsing and outputs a single space when printing:
 \begin{minted}{haskell}
 whitespace :: Format m []
 whitespace = some (char ' ' <|> char '\n' <|> char '\r' <|> char '\t')
@@ -650,12 +776,12 @@ whitespace = some (char ' ' <|> char '\n' <|> char '\r' <|> char '\t')
 
 The bitmap is parsed row by row, exploiting the information provided by the header.
 \begin{minted}{haskell}
-pBitMap :: Int -> Int -> Format m [ [[Char]] ]
+pBitMap :: Int -> Int -> Format m '[ [[Char]] ]
 pBitMap n m = count n (count m (bit <* whitespace))
   where bit = oneOf "01"
 \end{minted}
 
-The format \texttt{count n f} applies the format \texttt{n} times.
+The format \texttt{count n f} replicates the format \texttt{f} exactly \texttt{n} times.
 \begin{minted}{haskell}
 count :: Int -> Format f xs -> Format f (Map [] xs)
 count n f
@@ -674,20 +800,85 @@ oneOf :: [Char] -> Format f Char
 oneOf cs = Satisfy (`elem` cs) 
 \end{minted}
 
+\subsection{Token and Stream}
+\label{subsec:TokenAndStream}
+Formats are roughly divided in text and binary formats, which determine what type of tokens needs to be recognized and consequently what kind of stream 
+must be provided. As a consequence the framework presented must be adapted to be parametric in the token and stream type.
+
+The \texttt{Format} data type is firstly extended with an additional type parameter that encodes the token type. The constructor \texttt{Satisfiy} is then
+adjusted accordingly.
+
+\begin{minted}{haskell}
+data Format (f :: * -> *) (i :: *) (xs :: [ * ]) where
+  (<$>) :: Iso xs ys -> Format f i xs -> Format f i ys
+  Pure :: HList xs -> Format f i xs
+  (<*>) :: Format f i xs -> Format f i ys -> Format f i (xs :++: ys)
+  Empty :: SList xs -> Format f i xs
+  (<|>) :: Format f i xs -> Format f i xs -> Format f i xs
+  Satisfy :: (i -> Bool) -> Format f i [ i ]
+  Return :: HList xs -> Format f i xs
+  Fail :: String -> Format f i xs
+  (>>=) :: Format f i xs -> (HList xs -> Format f i ys) -> Format f i (xs :++: ys)
+\end{minted}
+%$
+
+Similarly another parameter is added to the \texttt{ParseSatisfy} type class
+\begin{minted}{haskell}
+class ParseSatisfy f i where
+  satisfy :: (i -> Bool) -> f i
+\end{minted}
+
+In the printing semantics the tokens produced must be combined to produce a stream. The type class \texttt{PrintToken f i s} provides the
+method \texttt{printToken}, which transforms a single token
+of type \texttt{i} in a printer of the stream type \texttt{f s}.
+\begin{minted}{haskell}
+class PrintToken f i s where
+  printToken :: i -> f s 
+\end{minted}
+
+Furthermore it is reasonable to expect that the stream type is 
+an instance of \texttt{Monoid}, as it happens for common stream
+types such as \texttt{String}, \texttt{ByteString} and lists.
+The type class \texttt{Monoid} provides the methods 
+\texttt{mconcat} and \texttt{mempty} which can be conveniently employed
+in the semantics of the applicative combinators and monadic combinators.
+
+\begin{minted}{haskell}
+mkPrinter :: (PrintToken f i s, Monoid s, Alternative f, Monad f) 
+           => Format f i xs -> f s
+mkPrinter (Satisfy p) (Cons x Nil)
+  | p x       = printToken x
+  | otherwise = empty
+mkPrinter (Pure _) _  = pure mempty
+mkPrinter (f1 <*> f2) hs = mappend <$> mkPrinter f1 hs1 <*> mkPrinter f2 hs2
+  where (hs1, hs2) = split (toSList f1) hs
+mkPrinter (Return _) _  = return mempty
+mkPrinter mkPrinter (f1 >>= k) hs = mappend <$> mkPrinter f1 hs1 <*> mkPrinter f2 hs2
+  where (hs1, hs2) = split (toSList f1) hs
+          f2 = k hs1			
+\end{minted}
+%$
+
 \subsection{Extensible Format}
+\label{subsec:ExtensibleFormat}
 The monadic extension discussed in \ref{subsec:Monadic} shows a shortcoming of the current \texttt{Format} representation.
-In order to provide new primitives the \texttt{Format} data-type has been extended with new constructors, the semantics functions \texttt{mkParser} and \texttt{mkPrinter} have been extended to handle the new cases and lastly
-the set of constraints in these functions increased.
+In order to provide new primitives the \texttt{Format} data type 
+has been changed, adding new constructors, the semantics functions \texttt{mkParser} and \texttt{mkPrinter} have been adjusted to include the new cases and lastly
+the set of constraints required to implement them increased.
 The last change is particularly troublesome, because it brakes the support for non-monadic parsers and printers.
 
-The problem lies in the fact that the format is represented as a data-type (more precisely a universe), which is closed to extensions.
-This design problem is known as the expression problem \cite{Wadler98ExprPr} and requires to define a data-type which can be extended adding new cases and adding new functions over the data-type, without recompiling existing code and while ensuring static type safety.
+The problem lies in the fact that the data type \texttt{Format} is
+a \emph{closed universe}, therefore it cannot be arbitrarily extended,
+without updating existing code.
+This design problem is known as the expression problem \cite{Wadler98ExprPr} and tests the expressivity of programming language.
+It requires to define a data type which can be extended adding new cases and adding new functions over it, without recompiling existing code and while retaining static type safety.
 A number of solutions have been proposed in literature, but an alternative approach to the problem is presented in this section.
-For simplicity the solution is explained using the original concrete 
-example.
+For simplicity the solution is explained using the original simple
+example, while the necessary changes to the \texttt{Format} data type
+are shown in \ref{subsec:FormatRevised}.
 
 \paragraph{Expression Problem}
-The following data-type represents an arithmetic expression:
+The data type \texttt{Expr} represents an arithmetic expression:
 \begin{minted}{haskell}
 data Expr = Val Int | Add Expr Expr
 \end{minted}
@@ -699,7 +890,7 @@ eval (Val i) = i
 eval (Add e1 e2) = eval e1 + eval e2
 \end{minted}
 
-Other semantics functions can be defined without modifying existing code.
+Other semantic functions can be defined without modifying existing code.
 For instance the function \texttt{pretty} returns a string representation of an expression.
 
 \begin{minted}{haskell}
@@ -708,11 +899,11 @@ pretty (Val i) = show i
 pretty (Add e1 e2) = "(" ++ show e1 ++ " + " ++ show e2 ++ ")"
 \end{minted}
 
-However adding new constructors to \texttt{Expr} requires to add new cases
-to the previous functions.
+However adding a new constructor to \texttt{Expr} requires to update
+all the functions defined over \texttt{Expr} to handle the new case.
 
-To solve the expression problem a new separate data-type is defined for 
-each constructor of the original data-type that requires extensibility.
+To solve the expression problem a separate data type is defined for 
+each constructor of the original universe.
 An additional type parameter is added to each of them.
 
 \begin{minted}{haskell}
@@ -724,8 +915,8 @@ data Add c where
 \end{minted}
 
 The index \texttt{c} has kind \texttt{* -> Constraint}.
-The Constraint Kind is one of the latest extension to the Glasgow Haskell Compiler (GHC), which provides a new kind \texttt{Constraint}.
-Class constraints and equality constraints have kind \texttt{Constraint}.
+The constraint kind is one of the latest extension to the Glasgow Haskell Compiler (GHC), which provides the distinct kind \texttt{Constraint}.
+Equality constraints and type classes have kind \texttt{Constraint}.
 
 Instead of building expressions using the constructors directly, the following smart constructors are used:
 
@@ -737,59 +928,58 @@ add :: (Use a c, Use b c) => a c -> b c -> Add c
 add = Add 
 \end{minted}
 
-The smart constructor \texttt{add} might look redundant at first sight.
-Its signature is however very important, it restricts the arguments of 
-\texttt{Add} forcing their types to be share the same parameter \texttt{c}
-of kind \texttt{* -> Constraint}.
-The type synonym \texttt{Use} is defined as follows:
-
+The smart constructor \texttt{add} might look redundant at first sight, 
+however its signature is very important, because it restricts the arguments of 
+\texttt{Add} to be indexed by the same parameter \texttt{c} of kind \texttt{* -> Constraint}.
+The type synonym \texttt{Use} ensures that the two arguments
+satisfy the constraints required by \texttt{Add}:
 \begin{minted}{haskell}
 type Use a c = c (a c)
 \end{minted}
 
-The constraint \texttt{Use a c} requires the presence of an instance for \texttt{c (a c)} for any constraint-indexed type \texttt{a}.
+In general the constraint \texttt{Use a c} requires the presence of an instance for \texttt{c (a c)} for any constraint-indexed type \texttt{a}.
 
-The arithmetic expressions composed using the smart constructors:
-
+Arbitrary arithmetic expressions can be composed using the smart constructors, while leaving the constraint parameter abstract:
 \begin{minted}{haskell}
 foo :: (Use Val c, Use Add c) => Add c
 foo = val 0 `add` val 1 `add` val 2
 \end{minted}
 
-The type signature is mandatory because the semantics \texttt{c} is left
-abstract, therefore the constraints introduced by the smart-constructors must be propagated. As a result each definition will carry a number of class constraints that expose the pieces of expression used.
-Note however that the user does not have to manually check them, because
-the type checker can automatically infer them. Relying on the type-checker to infer them has also other remarkable benefits, for example no duplicated constraints are produced and the order of the constraints themselves is insignificant.
+The type signature is mandatory: since \texttt{c} is not instantiated, the 
+constraints introduced by the smart constructors must be propagated. As a result each definition will carry a number of class constraints that expose the pieces of expression used.
+Note however that the user does not have to manually keep track of them, because they are automatically inferred by the type checker, which
+will trigger a type error if any is missing. Furthermore letting the type-checker infer them is very convenient, for example no duplicated constraints are generated and the order of the constraints themselves is insignificant.
 For instance in the example \texttt{foo}, the smart constructors \texttt{val} and \texttt{add} are used more than once, however only one constraint per type is inferred. 
 
-Semantics are defined by means of a type class.
+Semantics functions are defined by means of a properly kinded type class:
 
 \begin{minted}{haskell}
 class Eval a where
   eval :: a -> Int
 \end{minted}
 
-The class \texttt{Eval} has kind \texttt{* -> Constraint}.
+The type class \texttt{Eval} has one parameter of kind \texttt{*}, therefore
+its kind is \texttt{* -> Constraint}, hence
+it can be used to instantiate the constraint parameter \texttt{c}.
 
-New instances are defined separately for each data-type that represents a
-piece of expression. For the base cases the parameter \texttt{c} is actually just a phantom type.
+New instances are defined separately for each data type. For the base cases the parameter \texttt{c} is actually just a phantom type.
 
 \begin{minted}{haskell}
 instance Eval (Val c) where
   eval (Val i) = i
 \end{minted}
 
-Instead for the recursive cases the parameter \texttt{c} is instantiated with the same class constraint that is being implemented. 
+Instead for the recursive cases the parameter \texttt{c} must be instantiated with the same type class that is being implemented. 
 
 \begin{minted}{haskell}  
 instance Eval (Add Eval) where
   eval (Add e1 e2) = eval e1 + eval e2
   \end{minted}
 
-For example in the \texttt{Eval (Add Eval)} instance, since \texttt{c $\sim$ Eval}, after pattern matching on \texttt{Add}, the instances \texttt{Eval a} and
-\texttt{Eval b} are brought in scope, which allow to recursively call
-\texttt{eval} respectively over \texttt{e1} and \texttt{e2}.
-
+This produces the constraint \texttt{c \textasciitilde\ Eval}, 
+which after pattern matching on \texttt{Add}, brings into scope 
+the instances \texttt{Eval a} and \texttt{Eval b}, enabling the 
+recursive calls of \texttt{eval} on the two subexpressions.
 Lastly instead of using \texttt{eval} directly an helper function is needed.
 
 \begin{minted}{haskell}
@@ -797,14 +987,16 @@ evalExpr :: Use a Eval => a Eval -> Int
 evalExpr = eval
 \end{minted}
 
-This function has the only purpose to fix the type parameter of the argument to the proper concrete instance.
-The expressions built using the smart constructor always leave the constraint index abstract, because the same expression may be passed to 
-arbitrary semantics functions. Therefore, in order to disambiguate the abstract
-parameter this helper function is used.
+This function has the only purpose to fix the constraint parameter \texttt{c} 
+of indexed expression to \texttt{Eval}.
+In fact the smart constructors always leave \texttt{c} abstract, because the same expression may be interpreted by different semantic functions.
+Since the parameter of \texttt{Eval} is of kind \texttt{*}, if \texttt{eval}
+was used directly on a constraint-indexed expressions, its parameter
+would be ambiguous, resulting in a type error.
 
 \paragraph{Adding new functions}
-Adding new semantics functions is as easy as declaring a new type class and 
-implementing the corresponding instance for each data-type.
+Adding new semantics functions is as simple as declaring a new type class and 
+implementing the corresponding instance for each data type.
 \begin{minted}{haskell}
 class Pretty a where
   pretty :: a -> String
@@ -820,7 +1012,8 @@ prettyExpr = pretty
 \end{minted}
 
 \paragraph{Adding new cases}
-Adding a new case comes down to define a new data-type:
+Adding a new case requires to define a new data type and relative
+smart constructor:
 \begin{minted}{haskell}
 data Mul c where
   Mul :: (c a, c b) => a -> b -> Mul c
@@ -832,26 +1025,29 @@ bar :: (Use Val c, Use Add c, Use Mul c) => Mul c
 bar = foo `mul` foo
 \end{minted}
 
-As required by the expression problem, this solution retains static type safety. When an expression is evaluated by some semantics function a compile-time error will be raised, if the user forgot to update it for the new case.
+As required by the expression problem, this solution retains static type safety:
+when an expression is evaluated by some semantic function,
+if for some piece of expression the corresponding instance has
+not been provided, a compile-time error will be triggered.
 
 \begin{verbatim}
 *> evalExpr bar
-No instance for (Eval (Mul Eval)) arising from a use of ‘evalExpr’
+No instance for (Eval (Mul Eval)) arising from a use of `evalExpr’
   In the expression: evalExpr bar
 \end{verbatim}
 
-Furthermore no recompilation is needed, because each instance is independent from the other.
+Furthermore no recompilation is needed, because each instance is independent from the others.
 
 \paragraph{Discussion}
-Several solutions to the expression problem have proposed.
-A naive solution to the problem consists in defining each case as a separate data-type, exploiting parametric polymorphism for the recursive ones.
+Several solutions to the expression problem have been proposed.
+A naive solution to the problem consists in defining each case as a separate data type, exploiting parametric polymorphism for the recursive ones.
 
 \begin{minted}{haskell}
 data Val = Val Int
 data Add a b = Add a b
 \end{minted}
 
-Semantics functions are defined using type classes.
+Likewise semantic functions are defined using type classes.
 
 \begin{minted}{haskell}
 class Eval a where
@@ -868,35 +1064,42 @@ The instances for the recursive cases are defined assuming an appropriate
 context, that brings in scope the instances for the children, therefore allowing
 the recursive call to \texttt{eval}.
 
-The main drawback of this approach is that each concrete expression carries
-its own structure in the type. For instance:
+The main drawback of this approach is that the structure of each expression is replicated in its type. For instance:
 
 \begin{minted}{haskell}
-foobar :: Add Val (Add Val Val)
-foobar = Add (Val 1) (Add (Val 2) (Val 3))
+foo :: Add Val (Add Val Val)
+foo = Add (Val 1) (Add (Val 2) (Val 3))
 \end{minted}
 
-This encoding limits remarkably the kind of well-typed programs that 
-manipulate such expressions. For instance the following exponentiation function cannot be typed, because it contains an infinite type.
+This encoding is inconvenient not only because of the unwieldy types
+that it requires, but also because it restricts the class of well-typed programs that can be defined with it. It is easy to incur in infinite types, even in
+non recursive programs.
+For instance the following exponentiation function cannot be typed, because it contains an infinite type.
 
 \begin{minted}{haskell}
 exp e n = foldr (\_ -> Mul e) e [1..n-1]
 \end{minted}
 
-Swiestra in \cite{Swierstra08DTL} represents an extensible data-type as a fixed-point of a functor. Semantics function are expressed modularly as an algebra which is applied \emph{folding} over the functor.
-The automatic injection in the functor, which is necessary to apply this approach in practice, is fragile because it relies on the controversial overlapping instances extension of GHC and requires explicit type signatures in order to deduce the right injection.
+Swiestra represents an extensible data type as a fixed-point of a functor \cite{Swierstra08DTL}. Each constructor is defined as a separate data type
+that is injected in a functor and semantic functions consist of algebras,
+defined in a piecewise manner using the type class system, which are ultimately \emph{folded} over the functor.
+Swiestra develops automatic injectors, which work as smart constructor
+and appropriately arrange different data types in a functor.
+However this feature, essential to make this technique practical, is fragile because it relies on the controversial overlapping instances extension and requires explicit type signatures in order to deduce the right injection.
 
-Carette et al. in \cite{Carette09FTP} present an alternative approach to the expression problem that exploits only the type-class system. See the lecture notes \cite{Oleg12FTP} for an introduction closer to this presentation.
+Carette et al.  present an alternative approach to the expression problem that exploits only the type-class system \cite{Carette09FTP}. A series of lecture notes \cite{Oleg12FTP} contain an introduction closer to this presentation.
 
-Instead of using a data-type representation, the cases become methods in a class, parametrized by a type, that represents the result of a semantics function.
+Constructors are transformed in methods of a type class, parametrized by a type, that wraps the result of a semantic function.
 
 \begin{minted}{haskell}
-class Expr repr where
-  val :: Int -> repr
-  add :: rerp -> repr -> repr
+class Expr a where
+  val :: Int -> a
+  add :: a -> a -> a
 \end{minted}
 
-A function is added defining a data-type that wraps the result and implementing the instances for \texttt{Expr}.
+Semantic functions are defined as a data type that wraps the result of
+the interpretation and implementing the corresponding 
+instance for \texttt{Expr}.
 
 \begin{minted}{haskell}
 newtype Eval = Eval {eval :: Int}
@@ -909,48 +1112,455 @@ instance Expr Eval where
 New cases are added with a new class.
 
 \begin{minted}{haskell}
-class MulExpr repr where
-  mul :: repr -> repr -> repr
+class MulExpr a where
+  mul :: a -> a -> a
 
 instance MulExpr Eval where
   mul e1 e2 = Eval (eval e1 * eval e2)
 \end{minted}
 
 Compared to the approach presented here, this method has few advantages.
-Firstly it does not require any particular extensions, but exploits uniquely 
+Firstly it does not require any particular extension, but exploits uniquely 
 the type-class system. Secondly the number of constraints generated can be
 reduced via subclassing. For instance it would be natural to make the class
 \texttt{MulExpr} subclass of \texttt{Expr}.
-One possible disadvantage of this solution is that, once an expression is composed, it cannot be inspected, since methods do not create an actual data-type. Naive pattern-match would not work in the solution proposed here either, however I conjecture that some useful information could be stored with
-the constraint parameter. 
+One possible disadvantage of this solution is that, once an expression is composed, it cannot be inspected, since methods do not create an actual data type. Naive pattern-match would not work in the solution proposed in this
+thesis either, however I conjecture that some useful information could be stored with the constraint parameter. 
 Nevertheless both the two solutions fully and effectively solve the original formulation of the expression problem.
 
-\section{Discussion}
-\label{sec:Discussion}
-With these pieces in place it is already possible to describe various formats and derive automatically parser and printer for them. Note that this formulation allows to plug in any parsing/printing library that supports the \texttt{Alternative} class, which happens quite often. 
+\subsection{Format Revised}
+\label{subsec:FormatRevised}
+The solution proposed in \ref{subsec:ExtensibleFormat} has been
+effectively employed to leave the format representation open to
+extensions.
 
-The parsing and printing semantics of the alternative and applicative combinators are inverse under few assumptions,
-namely that \texttt{pure} does not consume any input when parsing and that \texttt{<*>} applies the second parser on the input left after the first parser is applied. This is another fairly common trait of parsing libraries.
+\paragraph{Functor Format}
+The format data type presented in \ref{subsec:TokenAndStream} have been 
+split in several data types and an additional constraint parameter
+have been added to each of them.
+As a representative example of the this transformation, 
+the revised functor format is shown:
 
-The choice combinator \texttt{<|>} has mainly two different semantics in parsing libraries: greedy choice and symmetric choice. Which one is provided is usually an explicit design decision that follows from the specific parsing strategy implemented.
-The former, adopted for instance by Parsec, will commit to the first alternative that makes any progress (consume some input). When this happens, the second alternative is dropped and is not tried even if the first one does not succeed. The latter, adopted for instance by UU-Parsinglib, does not commit to any alternative. If more than one alternative succeeds, then an ambiguous grammar is detected and a run-time failure occurs.
+\begin{minted}{haskell}
+data FMap c (m :: * -> *) (i :: *) (xs :: [ * ]) where
+  FMap :: (c m i a) => Iso xs ys -> a m i xs -> FMap c m i ys
+\end{minted}
 
-In the \texttt{Format} data-type, the combinator \texttt{<|>} is not explicitly marked as greedy or symmetric choice, therefore it is up to the user to ensure that the corresponding printing operator has the appropriate inverse semantics.
+The kind of the parameter \texttt{c} is not for the faint of heart:
+\begin{center}
+\texttt{c :: ((* -> *) -> * -> [*] -> *) -> Constraint} 
+\end{center}
+Luckily kinds are automatically inferred, therefore there is no need
+to provide an explicit type signature for it\footnote{Unfortunately GHC 7.8 does not support kind synonyms.}.
+Contrary to the simple example presented in \ref{subsec:ExtensibleFormat},
+the parameters \texttt{m}, \texttt{i} and \texttt{xs} of the argument 
+of \texttt{FMap} have been left explicit because the data type
+itself is indexed over those.
+Nevertheless the argument is not explicitly indexed by a constraint kind,
+so that its kind is slightly simpler:
+
+\begin{center}
+\texttt{a :: (* -> *) -> * -> [ * ] -> *}
+\end{center}
+
+Following the pattern described in \ref{subsec:ExtensibleFormat},
+a convenient type synonym is defined:
+\begin{minted}{haskell}
+type Use a c m i = c m i (a c)
+\end{minted}
+
+In order to retain the well-known syntax for functors, a smart constructor
+is also provided:
+\begin{minted}{haskell}
+(<$>) :: Use a c m i => Iso args xs -> a c m i args -> FMap c m i xs
+f <$> x = FMap f x
+\end{minted}
+
+	Analogous data types and relative smart constructors 
+	have been defined for the other core combinators
+	discussed in the previous sections, which include 
+	\texttt{Applicative}, \texttt{Alternative} and \texttt{Monad} combinators.
+
+	\paragraph{Semantic Functions}
+	\label{par:SemanticsFun}
+	The interpretation function \texttt{mkParser} has been converted into
+	a type class constraint:
+	
+\begin{minted}{haskell}
+class ParseWith (m :: * -> *) (i :: *) a where
+  mkParser' :: a m i xs -> m (HList xs)
+\end{minted}
+
+	Also in this case \texttt{a} is not explicitly indexed with a constraint
+	parameter, hence an appropriate entry point is needed
+	for constraint-indexed types:
+
+\begin{minted}{haskell}
+mkParser :: Use a ParseWith m i => a ParseWith m i xs -> m (HList xs)
+mkParser = mkParser'
+\end{minted}
+
+	Furthermore a completely general, yet correct, instance is given
+	in terms of the underlying \texttt{Functor} instance:
+\begin{minted}{haskell}
+instance Functor m => ParseWith m i (FMap ParseWith) where
+  mkParser' (FMap i f) = apply i <$> mkParser' f
+\end{minted}
+%$
+
+	The transformation of the semantic function \texttt{mkPrinter}
+	follows exactly the same pattern.
+	Furthermore for the core combinators that belong to the
+	\texttt{Applicative}, \texttt{Alternative} and \texttt{Monad} classes
+	analogous general instances have been provided.
+	As a result the only instances that must be manually added
+	are those of \texttt{ParseSatisfy}	and \texttt{PrintToken}, 
+	because they are library specific.
+	To give a concrete example, the instance relative to
+	\texttt{Parsec} \cite{Parsec} parser is given:
+
+\begin{minted}{haskell}
+instance Stream s m Char => ParseSatisfy (ParsecT s u m) Char where
+  parseSatisfy = satisfy
+\end{minted}
+
+	\paragraph{Error Messages}
+	Extending the format universe with new cases is straightforward.
+	For example many parsing libraries include a combinator 
+	that allows to provide an helpful error message,
+	when a parser fails, 	typically which token was expected.
+
+\begin{minted}{haskell}
+<?> :: Parser a -> String -> Parser a
+\end{minted}	
+
+	The combinator is converted in a new data type and
+	an appropriate smart constructor is defined:
+\begin{minted}{haskell}
+data Help c m i xs where
+  Help :: c m i a => a m i xs -> String -> Help c m i xs
+
+(<?>) :: Use a c m i => a c m i xs -> String -> Help c m i xs
+f <?> msg = Help f msg
+\end{minted}
+	
+	To keep the library as easily pluggable as possible an appropriate
+	hook is defined, by means of another type class, following the
+	example of the \texttt{ParseSatisfy} and \texttt{PrintToken} classes:
+
+\begin{minted}{haskell}
+class ParseHelp m where
+  parseHelp :: m a -> String -> m a
+  parseHelp = const
+\end{minted}
+	Furthermore in this case it is possible to provide an appropriate
+	default behaviour, which simply ignores the given error message.
+	For libraries that provides such combinators, like Parsec \cite{Parsec},
+	the instance is straightforward:
+	
+\begin{minted}{haskell}
+instance ParseHelp (ParsecT s u m) where
+  parseHelp = (<?>)
+\end{minted}
+
+	Once more a generic instance of \texttt{ParseWith} is given,
+	assuming \texttt{ParseHelp} in the context:
+	
+\begin{minted}{haskell}
+instance ParseHelp m => ParseWith m i (Help ParseWith) where
+  mkParser' (Help f msg) = parseHelp (mkParser' f) msg
+\end{minted}
+	
+\section{Conclusion}
+\label{sec:FormatConclusion}
+\subsection{Discussion}
+\label{subsec:Discussion}
+The library presented in this chapter can effectively describe various real-world formats and derive automatically consistent parsers and printers 
+for them.
+Text-based and binary formats are both supported by abstracting
+over the token and stream type.
+The library relies on a minimal core of basic standard format combinators, that closely resemble well-known parser combinators and can be easily
+inverted.
+As a result the user of this library specifies a format just like writing a parser for it and receives the inverse printer for free.
+
+\paragraph{Plug-in Framework}
+The library Boomerang \cite{Boomerang}, currently available on Hackage,
+provides similar support for invertible parsing and printing.
+However, differently from the library proposed in this thesis, the parser
+and printer backend are fixed and implemented from scratch.
+Considering the abundance of sophisticated, efficient and mature 
+parsing and printing libraries readily available it seems pointless to reinvent yet one more.
+One of the benefits of this framework is that it allows to reuse any
+existing library off the shelf, with minimal effort needed from the
+final user. Arbitrary libraries can seamlessly be plugged in as long as they 
+implement at least the \texttt{Alternative} type class, which is 
+customary.
+
+\paragraph{Extensible Framework}
+The framework is extensible, letting the user tailor the library to his needs, by
+introducing new primitives.
+For example some parsing libraries provide specific functions
+to increase the performance of certain operations, such as \texttt{skipMany}, or to selectively enable backtracking, as it happens with \texttt{try} in Parsec \cite{Parsec}.
+The format representation discussed in \ref{subsec:FormatRevised} can be 
+easily extended with new constructs, following the technique explained in
+\ref{subsec:ExtensibleFormat}.
+
+\paragraph{Alternative semantics}
+The generic parsing and printing semantics given for the applicative combinators are inverse under few assumptions,
+namely that \texttt{pure} does not consume any input when parsing and that \texttt{<*>} applies the second parser on the input left after the first parser is applied, which is the de-facto standard behaviour in parsing libraries.
+
+Two opposite semantics are common for the choice 
+combinator \texttt{<|>}: greedy and symmetric choice. 
+Each library typically provides only one of them, 
+depending on the specific parsing strategy implemented.
+For instance Parsec, an industrial strenght parsing library \cite{Parsec}, 
+provides a greedy choice operator, whose semantics is predictive parsing
+with a look ahead of one token. On the other hand UU-Parsinglib, based on the work by Swiestra et al. \cite{UUParsingLib}, provides a symmetric choice operator that does not commit to any alternative. If more than one succeeds, then an ambiguous grammar is detected and a run-time failure occurs.
+
+In the \texttt{Format} data type, the combinator \texttt{<|>} is not explicitly marked as greedy or symmetric choice, therefore it is up to the user to ensure that the corresponding printing operator has the appropriate inverse semantics.
 
 % Arbitrary choice for apply/unapply in <$>
-% It is worth pointing out that these operations are all type-safe.
+% It is worth pointing out that these operations are all type-safe.		
 
-\section{Related Work}
-This problem has been studied deeply in literature. 
-A common approach to this problem is to give a unique specification for 
-both parser and printer.
-Following the parser combinators appraoch, few basic invertible combinators are given and these are combined to obtained more complex combinators, which are themselves invertible.
-% More detailed description here
+\subsection{Related and Future Work}
+\label{subsec:FormatRelatedWork}
+The problem of unifying parsing and printing in a single specification
+has been studied extensively in literature.
+Some work are based on arrows \cite{Alimarine, PolyDataConv}.
+Alimarine et al.\ approach consists of writing invertible programs by construction, combining bidirectional arrows, i.e.\ BiArrows.
+As an example of this technique they implement a parser using reversible
+arrows, thus getting the corresponding printer for free.
+However this technique stands back from the fairly ordinary 
+applicative or monadic style, so common in parsing libraries.
+In this library formats are described using these established styles, hence it is more likely to be adopted.
+Boespflug proposes a similar embedded DSL based on reversible combinators called cassettes and that relies on continuation passing style and rank 2 types 
+for composition \cite{Boespflug}.
+The translation to direct style reveals that the continuations are impure
+and make use of control effects. It is particularly cumbersome and unnatural to define cassette for user-defined data type: code involving continuation 
+passing style is notoriously hard to understand, maintain and debug.
+Matsuda and Wang develop FliPpr, a quite involved programming transformation system that inverts the specification of a pretty printer and 
+produces the corresponding parser \cite{FliPpr}.
+Similarly to the library developed in this thesis, the system does not
+reimplement parser and printer from scratch, but rather 
+reuses existing libraries as backend. In addition their technique
+provides a fine-grained control over the pretty-printing, which 
+however has the drawback of somewhat cluttering the input grammar 
+with pretty printing annotations.
+For example the \emph{biased choice} operator \texttt{<+} separates 
+pretty from ugly patterns, which are nevertheless accepted when
+parsing. Lastly it is arguably more natural and desirable 
+to implement a parser and get the corresponding printer for free, rather
+than the other way around.
+The library proposed in this thesis does not aim to print pretty output directly,
+however it is still possible to choose one of the existing pretty printing
+library \cite{Hughes95thedesign, Wadler98aprettier, SwierstraPP} as backend, for this purpose. Printers for certain formats are inherently ambiguous and
+result in non-termination, such as the combination of the primitive version
+of \texttt{many} and \texttt{some} with \emph{trivial} formats \ref{subsec:Many}. In these circumstances the function \texttt{atMost} 
+tunes a printer and selects a \emph{pretty} version.
 
-As in \cite{Rendel10ISD} nested tuples are used instead of type-level lists, which however has few shortcomings.
-Nested tuples are less composable 
-Unit (\texttt{()}) is used to encode trivial formats
-The reason for this distinction is that list of types
-can be manipulated.
+There is also a relevant series of works on type-safe variants of 
+C \texttt{printf} and \texttt{scanf} formatting functions.
+Danvy's approach consists of an embedded DSL, that exploits continuation
+passing style \cite{Danvy}.
+Asai reflects on his work and reveals that it is based on delimited continuations \cite{Asai}. He then elaborates three new solutions, including
+two in direct style.
+Hinze employs functor type-indexed formats, which are combined to
+compute the types of the expected arguments.
+The library developed in this thesis is more expressive than 
+common string formats, because it supports user-defined data types and
+recursive formats. 
+The format representation proposed here can be effectively employed to implement a type safe version \texttt{printf} and \texttt{scanf}.
+However the arguments to the printer are actually collected in a single heterogeneous list: it would be interesting to investigate whether it is possible
+to provide the \texttt{printf} variadic interface, exploiting
+Haskell advanced type features. While the type of the function
+can be easily computed from the index of the format using a closed type family, it seems highly non-trivial to curry a function that takes a list-index
+data type as argument. I conjecture that a continuation-passing style solution
+could solve the problem.
+
+The library presented in this chapter is greatly inspired by the
+work on Invertible Syntax Descriptions by Rendel and Ostermann \cite{Rendel10ISD}.
+Following the example of parsing libraries based on applicative functors, 
+they define a small core of invertible primitives,
+which can be combined to build complex invertible syntax descriptions.
+Their combinators are defined as methods of ad-hoc classes 
+such as \texttt{IsoFunctor} and \texttt{IsoApplicative} that
+resemble the standard Applicative and Functor classes, but
+are tailored for partial isomorphism.
+Instead this library, in its simplest description \ref{sec:Format}, 
+represents basic formats as a universe.
+The parsing and printing semantics are obtained as an \emph{interpretation}, an approach similar to that proposed by Swiestra \cite{PowerOfPi}.
+
+\paragraph{Partial Isomorphism}
+Both the library implemented in this thesis and that of Rendel et al.\ 
+rely on partial isomorphisms to couple a function and its inverse in a single entity, however they are slightly different.
+Their isomorphism is symmetrical, because the two functions are both
+partial. As a result the corresponding algebra of partial isomorphism 
+is slightly more expressive. For example a partial isomorphism
+for \texttt{foldl} is derived from a minimal set of primitive
+isomorphisms, as a small-step abstract machine.
+The partial isomorphism used in this library on the other hand
+is partial only in the inverse function.
+Its asymmetry precludes the basic combinator \texttt{inverse}, that
+is essential to derive \texttt{foldl}, which is then implemented as a primitive. However, regardless of which partial isomorphism is used, 
+\texttt{foldr} could not be derived following the same approach.
+Since \texttt{foldr} is strictly more expressive than \texttt{foldl} it is an
+open question whether the algebra of partial isomorphism is expressive
+enough to include it.
+It is also worth pointing out that \texttt{foldr} can be inverted only under certain specific conditions.
+\begin{center}
+\texttt{unfoldr g (foldr f z xs) ≡ xs}
+\end{center}
+Specifically:
+\begin{center}
+\begin{tabular}{cccc}
+\texttt{g}  &\texttt{(f x y)} &\texttt{=} &\texttt{Just (x, y)} \\
+\texttt{g}  &\texttt{z}        &\texttt{=} &\texttt{Nothing}
+\end{tabular}
+\end{center}
+
+The two isomorphisms differ also in the kind of their parameters:
+list of types (\texttt{[*]}) are used in this library, while
+Randel employs simple types (\texttt{*}).
+At first sight these representations might look equivalent, because
+the unit type \texttt{()} corresponds to the empty list \texttt{'[]},
+and nested pairs can be used to collect together heterogeneous types
+just like type level lists.
+However it turns out that the type level representation is more precise
+and therefore more flexible.
+Consider for example the two alternative signatures of the applicative operator \texttt{<*>}:
+
+\begin{minted}{haskell}
+<*> :: f a -> f b -> f (a, b)
+<*> :: Format f xs -> Format f ys -> Format f (xs :++: ys)
+\end{minted}
+
+Combining two \emph{trivial} formats \texttt{p} and \texttt{q} with 
+\texttt{<*>} should result in another trivial format, however this happens
+only with the more accurate list representation:
+\begin{minted}{haskell}
+p <*> q :: f ((), ())
+p <*> q :: Format f '[]
+\end{minted}
+
+The interaction of trivial formats with list based combinators such as \texttt{many} and \texttt{some} shows the same wicked behaviour:
+
+\begin{minted}{haskell}
+many p :: f [()]
+many p :: Format f '[]
+\end{minted}
+
+The strict kind distinction between target types and
+container allows to precisely manipulate the former using closed
+type families such as \texttt{Map} and \texttt{:++:}, making the
+combinators more composable. Furthermore several
+desired properties of the partial isomorphism algebra, such as associativity, follow directly from the properties of the container type.
+
+\paragraph{Design}
+The technique presented by Rendel et al.\ is demonstrated 
+on a proof-of-concept parsing and pringing library.
+The instances given for the newly created type classes,
+require full access to the library, however
+it is customary in libraries not to expose fundamental data types, 
+in order to prevent users from breaking internal invariants.
+The library implemented in this thesis
+does not rely on a such privileged view, on the contrary, 
+since the behaviour of the core combinators is virtually
+standard, completely general and reusable instances are given.
+Furthermore Rendel's library could support generically only
+monadic parsers, because of the symmetric partiality of
+the functions stored in his isomorphism.
+For example consider the \texttt{IsoFunctor} combinator
+\texttt{<\$> :: Iso a b -> f a -> f b} and the standard
+\texttt{Functor} combinator \texttt{<\$> :: (a -> b) -> f a -> f b}.
+In the latter the first argument is a pure function and it is impossible
+to appropriately compose it with the partial function of
+the isomorphism, without the increased
+expressive power of the monadic binding.
+Concretely the only admissible generic instance that can be 
+given for \texttt{IsoFunctor} is:
+\begin{minted}{haskell}
+instance Monad f => IsoFunctor f where 
+  i <$> p = do
+    x <- p
+    case apply i of
+      Just y -> return y
+      Nothing -> fail ""
+\end{minted} 
+% $
+On the other hand, the generic instance given in \ref{par:SemanticsFun} for
+the functor \texttt{FMap} accordingly requires its underlying semantics to be
+only a \texttt{Functor}.
+Furthermore using the symmetric partial isomorphism they implement their 
+own \texttt{satisfy} function, named \texttt{subset :: (a -> Bool) -> Iso a a},
+and instead assume in the class \texttt{Syntax} a method
+\texttt{token} that returns the next token in the stream.
+This design choice does not cope well with existing parsing libraries,
+which usually provide \texttt{satisfy} as a primitive and implement
+token as \texttt{satisfy (const True)}. An unfortunate consequence 
+of this mismatch is that a generic instance would poorly interact with
+the underlying library.
+In this library the isomorphism \texttt{subset} cannot be defined because
+the \texttt{apply} function is not partial, but more importantly it
+is not needed, because it is assumed as primitive in \texttt{ParseSatisfy}.
+
+Rendel et al.\ recognize the problem of providing a suitable interface,
+in order to support existing libraries and suggest subclassing
+as the main extension mechanism. This is not an option
+for our library, because it is not based on type classes, however
+extensibility is equivalently achieved, by means of a novel
+solution to the expression problem \ref{subsec:ExtensibleFormat}.
+
+\paragraph{Monadic Formats}
+In section \ref{subsec:Monadic} the format universe is extended 
+with a monadic bind operator. 
+Its signature is not as general as the conventional one for practical purposes.
+As far as I know this is the first library that provides
+invertible parser and printers for context sensitive grammars, even
+though with some limitations.
+It would be interesting to investigate further this topic, in order
+to give to this combinator the standard degree of generality:
+\begin{minted}{haskell}
+(>>=) :: Format f xs -> (HList xs -> Format f ys) -> Format f ys
+\end{minted}
+The problematic part lies in the printer semantics, in which the
+dependency embedded by the continuation has to be somehow inverted. Specifically, in order to correctly invert the parser, 
+from an arbitrary \texttt{HList ys} the corresponding \texttt{HList xs}
+has to be retrieved.
+The invertible programming paradigm could provide some insight on this problem, though it is important to keep in mind that only injective functions
+can be inverted, consequently this approach could restrict the 
+class of grammar accepted.
+On the other hand the solution proposed in the library is conservative, but sound, because no limitation whatsoever is imposed.
+
+\paragraph{Formal Semantics}
+In this thesis the correct invertibility of the formats provided by this
+library has not been formally proved.
+It would be interesting to investigate its formal properties, using
+a proof assistant with dependent types.
+The work on Total Parser Combinator by Danielsson 
+\cite{TotalParserCombinator} is particularly relevant and could
+represent a suitable base for this line of research.
+Exploiting dependent types and mixing induction and coinduction, 
+he develops a monadic parser combinators library that guarantees 
+termination and supports left recursion.
+The same techniques are then employed to study correct-by-construction
+pretty printers \cite{CorrectByConstruction}. The main result of the paper
+is the proof that those printers satisfy the round-trip property,
+i.e.\ if a value is pretty printed and the resulting string parsed with respect
+to the same grammar, the original value is obtained.
+Future work should strive to prove the same result for this format library.
+On the other hand I expect a weaker property for the converse theorem, in fact 
+the ambiguity problem of the printers discussed in \ref{par:Termination}
+is resolved arbitrarily. Further research should study a suitable relation
+\texttt{s₁ ⊆ s₂}, which denotes that the representation \texttt{s₂}
+is as ``pretty'' as \texttt{s₁}.
+The desired theorem would then be \texttt{print (parse s) ⊆ s}.
+Analyzing double semantics specification in a proof assistant would
+also require to precisely describe the inductive and coinductive definitions
+of the format combinators, hence explaining which formats can be 
+correctly defined in this framework.
+
+% TODO remove
+	\bibliographystyle{plain}
+ 	\bibliography{../svc}
 
 \end{document}

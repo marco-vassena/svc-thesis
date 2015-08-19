@@ -34,7 +34,7 @@
  keywords = {datatype-generic programming, dependent types, edit distance},
 } 
 
-@inproceedings{Oury:2008:PP:1411204.1411213,
+@inproceedings{PowerOfPi,
  author = {Oury, Nicolas and Swierstra, Wouter},
  title = {The Power of Pi},
  booktitle = {Proceedings of the 13th ACM SIGPLAN International Conference on Functional Programming},
@@ -70,7 +70,7 @@
  keywords = {hoare logic, semantics, separation logic, version control},
 } 
 
-@inproceedings{Alimarine:2005:BAA:1088348.1088357,
+@inproceedings{Alimarine,
  author = {Alimarine, Artem and Smetsers, Sjaak and van Weelden, Arjen and van Eekelen, Marko and Plasmeijer, Rinus},
  title = {There and Back Again: Arrows for Invertible Programming},
  booktitle = {Proceedings of the 2005 ACM SIGPLAN Workshop on Haskell},
@@ -87,6 +87,26 @@
  address = {New York, NY, USA},
  keywords = {arrows, haskell, invertible program construction, polytypic programming},
 }
+
+@article{PolyDataConv,
+ author = {Jansson, Patrik and Jeuring, Johan},
+ title = {Polytypic Data Conversion Programs},
+ journal = {Sci. Comput. Program.},
+ issue_date = {April 2002},
+ volume = {43},
+ number = {1},
+ month = apr,
+ year = {2002},
+ issn = {0167-6423},
+ pages = {35--75},
+ numpages = {41},
+ url = {http://dx.doi.org/10.1016/S0167-6423(01)00020-X},
+ doi = {10.1016/S0167-6423(01)00020-X},
+ acmid = {586386},
+ publisher = {Elsevier North-Holland, Inc.},
+ address = {Amsterdam, The Netherlands, The Netherlands},
+} 
+
 
 @INPROCEEDINGS{Kiselyov04stronglytyped,
     author = {Oleg Kiselyov},
@@ -166,7 +186,7 @@
  
 @article{Swierstra08DTL,
  author = {Swierstra, Wouter},
- title = {Data Types \&\#224; La Carte},
+ title = {Data Types à La Carte},
  journal = {J. Funct. Program.},
  issue_date = {July 2008},
  volume = {18},
@@ -730,3 +750,207 @@ language={English}
  address = {New York, NY, USA},
  keywords = {generic programming, rank-2 types, traversal, type cast},
 } 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Parser Generators
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@techreport{YACC,
+  author = {Johnson, C. Stephen},
+  year = {1975},
+  title = {“Yacc—yet another compiler compiler”},
+  publisher = {Murray Hill},
+  institution = {NJ: Bell Telephone Laboratories}
+}
+
+@misc{HAPPY,
+  key = {HAPPY},
+  title = {Happy - The Parser Generator for Haskell},
+  howpublished = {\url{https://www.haskell.org/happy/}}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Parsing Libraries
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@techreport{Parsec,
+  author = {{L}eijen, {D}aan},
+  title = {Parsec, a fast combinator parser},
+  year = {2001},
+  institution = {Institute of Information and Computing Sciences, UtrechtUniversity},
+  type = {Technical Report UU-CS-2001-35}
+  }
+
+
+@inproceedings{UUParsingLib,
+ author = {Swierstra, S. Doaitse and Duponcheel, Luc},
+ title = {Deterministic, Error-Correcting Combinator Parsers},
+ booktitle = {Advanced Functional Programming, Second International School-Tutorial Text},
+ year = {1996},
+ isbn = {3-540-61628-4},
+ pages = {184--207},
+ numpages = {24},
+ url = {http://dl.acm.org/citation.cfm?id=647699.734159},
+ acmid = {734159},
+ publisher = {Springer-Verlag},
+ address = {London, UK, UK},
+} 
+
+@misc{Boomerang,
+  key = {Boomerang},
+  title = {Boomerang- Library for invertible parsing and printing},
+  howpublished = {\url{https://hackage.haskell.org/package/boomerang}}
+}
+
+@inproceedings{FliPpr,
+ author = {Matsuda, Kazutaka and Wang, Meng},
+ title = {FliPpr: A Prettier Invertible Printing System},
+ booktitle = {Proceedings of the 22Nd European Conference on Programming Languages and Systems},
+ series = {ESOP'13},
+ year = {2013},
+ isbn = {978-3-642-37035-9},
+ location = {Rome, Italy},
+ pages = {101--120},
+ numpages = {20},
+ url = {http://dx.doi.org/10.1007/978-3-642-37036-6_6},
+ doi = {10.1007/978-3-642-37036-6_6},
+ acmid = {2450277},
+ publisher = {Springer-Verlag},
+ address = {Berlin, Heidelberg},
+} 
+
+@INPROCEEDINGS{Hughes95thedesign,
+    author = {John Hughes},
+    title = {The Design of a Pretty-printing Library},
+    booktitle = {Advanced Functional Programming},
+    year = {1995},
+    pages = {53--96},
+    publisher = {Springer Verlag}
+}
+
+@article{SwierstraPP,
+ author = {Swierstra, S. doaitse and Chitil, Olaf},
+ title = {Linear, Bounded, Functional Pretty-printing},
+ journal = {J. Funct. Program.},
+ issue_date = {January 2009},
+ volume = {19},
+ number = {1},
+ month = jan,
+ year = {2009},
+ issn = {0956-7968},
+ pages = {1--16},
+ numpages = {16},
+ url = {http://dx.doi.org/10.1017/S0956796808006990},
+ doi = {10.1017/S0956796808006990},
+ acmid = {1520299},
+ publisher = {Cambridge University Press},
+ address = {New York, NY, USA},
+} 
+
+@INPROCEEDINGS{Wadler98aprettier,
+    author = {Philip Wadler},
+    title = {A Prettier Printer},
+    booktitle = {Journal of Functional Programming},
+    year = {1998},
+    pages = {223--244},
+    publisher = {Palgrave Macmillan}
+}
+
+@article{Danvy,
+ author = {Danvy, Olivier},
+ title = {Functional Unparsing},
+ journal = {J. Funct. Program.},
+ issue_date = {November 1998},
+ volume = {8},
+ number = {6},
+ month = nov,
+ year = {1998},
+ issn = {0956-7968},
+ pages = {621--625},
+ numpages = {5},
+ url = {http://dx.doi.org/10.1017/S0956796898003104},
+ doi = {10.1017/S0956796898003104},
+ acmid = {969603},
+ publisher = {Cambridge University Press},
+ address = {New York, NY, USA},
+} 
+
+@article{Asai,
+ author = {Asai, Kenichi},
+ title = {On Typing Delimited Continuations: Three New Solutions to the Printf Problem},
+ journal = {Higher Order Symbol. Comput.},
+ issue_date = {September 2009},
+ volume = {22},
+ number = {3},
+ month = sep,
+ year = {2009},
+ issn = {1388-3690},
+ pages = {275--291},
+ numpages = {17},
+ url = {http://dx.doi.org/10.1007/s10990-009-9049-5},
+ doi = {10.1007/s10990-009-9049-5},
+ acmid = {1743382},
+ publisher = {Kluwer Academic Publishers},
+ address = {Hingham, MA, USA},
+ keywords = {Continuation-passing style (CPS), Delimited continuations, Direct style, Printf, Types},
+} 
+
+@inproceedings{TotalParserCombinator,
+ author = {Danielsson, Nils Anders},
+ title = {Total Parser Combinators},
+ booktitle = {Proceedings of the 15th ACM SIGPLAN International Conference on Functional Programming},
+ series = {ICFP '10},
+ year = {2010},
+ isbn = {978-1-60558-794-3},
+ location = {Baltimore, Maryland, USA},
+ pages = {285--296},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/1863543.1863585},
+ doi = {10.1145/1863543.1863585},
+ acmid = {1863585},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {dependent types, mixed induction and coinduction, parser combinators, productivity, termination},
+} 
+
+@inproceedings{CorrectByConstruction,
+ author = {Danielsson, Nils Anders},
+ title = {Correct-by-construction Pretty-printing},
+ booktitle = {Proceedings of the 2013 ACM SIGPLAN Workshop on Dependently-typed Programming},
+ series = {DTP '13},
+ year = {2013},
+ isbn = {978-1-4503-2384-0},
+ location = {Boston, Massachusetts, USA},
+ pages = {1--12},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/2502409.2502410},
+ doi = {10.1145/2502409.2502410},
+ acmid = {2502410},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {dependent types, pretty-printing},
+} 
+
+@incollection{ Fokker,
+year={1995},
+isbn={978-3-540-59451-2},
+booktitle={Advanced Functional Programming},
+volume={925},
+series={Lecture Notes in Computer Science},
+editor={Jeuring, Johan and Meijer, Erik},
+doi={10.1007/3-540-59451-5_1},
+title={Functional parsers},
+url={http://dx.doi.org/10.1007/3-540-59451-5_1},
+publisher={Springer Berlin Heidelberg},
+author={Fokker, Jeroen},
+pages={1-23},
+language={English}
+}
+
+@unpublished{Boespflug,
+  author = {Boespflug Mathieu},
+  title = "	Functional Pearl: Replaying the stack for parsing and pretty printing",
+  year = 2012,
+  month = sep,
+  note = {\url{http://www.cs.mcgill.ca/~mboes/papers/cassette.pdf}}
+}
