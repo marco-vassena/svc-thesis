@@ -1,0 +1,48 @@
+\documentclass[../Thesis.tex]{subfiles}
+
+\begin{document}
+
+\chapter{Conclusion}
+\label{chp:Conclusion}
+In this thesis I have analyzed the problem of structure-aware revision control,
+which aims to improve the quality of version control systems, by
+exploiting the knowledge of how data is encoded in a file.
+
+Firstly I have developed an EDSL for binary and text-based data formats, which
+automatically derives inverse parser and printer, given a format description.
+Since a unique specification is given for each
+format, this technique ensures that parsers and printers are 
+always synchronized, therefore ensuring round-trip behaviour.
+A format description allows a version control system 
+to access to the data contained in a file and its structure, so that 
+it can detect changes more precisely. In addition
+after a merge, the data can be serialized back to a file according to its format.
+
+Secondly I have implemented a data-type generic \texttt{diff} and \texttt{diff3}
+algorithm in Haskell. The data stored in a file is parsed and represented as
+a data type, which can be easily converted to the heterogeneous rose trees
+data type, a generic representation which is used in the \texttt{diff} and 
+\texttt{diff3} algorithms. The algorithms
+have been employed in a proof-of-concept structure-aware version
+control system that shows the applicability of the theories studied in this 
+thesis.
+
+Lastly I have developed a formal model in the Agda proof assistant, 
+with which I have studied the two algorithms and their formal properties.
+The model provides an unambiguous specification of the algorithms
+and accurately describe their semantics.
+In addition the properties proved are a precious 
+source of information, useful to interpret and further 
+describe their behaviour. The formal model gives the foundations
+to further investigate the semantics of structure-aware version control
+systems.
+
+The contributions of this thesis can be summarized in:
+\begin{itemize}
+	\item An EDSL for describing data formats that unifies parsing and printing.
+	\item A data type generic \texttt{diff} and \texttt{diff3} algorithm.
+	\item A formal model that describes the semantics of these algorithms.
+	\item A proof-of-concept structure-aware version control system.
+\end{itemize}
+
+\end{document}
