@@ -128,12 +128,10 @@ decEq _ _ = tyEq Proxy Proxy
 \end{minted}
 
 	\subsection{Typed List}		
-	\todo{Is it better to have just an introductive 	chapter about all these
-	kinds of lists?}
 	The algorithms manipulate several different kind of typed list,
 	which are all small variation of the heterogeneous list \texttt{HList} 
-	introduced in \ref{chapter:FormatRepresentation} \todo{Specific section 
-	about HList}. This section defines them and explains their role.
+	introduced in \ref{par:HLIst}. This section defines them and explains their 
+	role.
 	
 	\paragraph{TList}
 	The type \texttt{TList as} represents a list of types \texttt{as} each 
@@ -148,8 +146,7 @@ data TList as where
 	
 	An appropriate \texttt{TList} can be automatically built for lists of types 
 	known at compile time, in a similar manner to what happens for
-	\texttt{SList} with \texttt{KnownSList}, as described in \ref{?}.
-	\todo{Specific section about SList.}
+	\texttt{SList} with \texttt{KnownSList}, as described in \ref{par:SList}.
 	
 \begin{minted}{haskell}
 class KnownTList as where
@@ -175,7 +172,7 @@ instance (Typeable a, KnownTList as) => KnownTList (a : as) where
 	It is also entirely straightforward to provide an instance for the 
 	type	class \texttt{Reify}, which converts a \texttt{TList as} 
 	into the corresponding singleton type 
-	\texttt{SList as}, introduced in \ref{slist section}. 
+	\texttt{SList as}, introduced in \ref{par:SList}. 
 	\todo{Add section specific to SList}
 
 \begin{minted}{haskell}
@@ -592,7 +589,7 @@ reifyArgs = toSList . argsTy
 	if this is not the case.
 	As a matter of fact the edit script data type already contains enough 
 	information to reconstruct \emph{both} the source and target object.
-	Section \ref{subsec:HaskellAlgo} and \ref{subsec:par:SourceTargetObj} show
+	Section \ref{subsec:HaskellAlgo} and \ref{par:SourceTargetObj} show
 	two total function that retrieve both from the edit script alone.
 	The formal model heavily relies on this property and the advantages with respect to safety for a 
 	practical implementation	are evident.
@@ -657,7 +654,7 @@ instance Diff Int where
   type FamilyOf Int = IntF
 \end{minted}
 
-	See chapter/appendix \ref{ExampleChapter} for a complete example.
+	See chapter/appendix \ref{chapter:Example} for a complete example.
 	
 	\section{Diff$_3$}
 	This section shows the Haskell implementation of the
@@ -1262,7 +1259,7 @@ mergeWithAncestor p a q =
 	
 	\paragraph{File system}
 	Version control systems such as Git \cite{GIT} and Mercurial 
-	\cite{HG} do not track single objects, but a collection of files and 
+	\cite{Mercurial} do not track single objects, but a collection of files and 
 	directories. The prototype discussed in this thesis is in principle able
 	to correctly simulate the same behaviour. In fact it is possible to
 	model the portion of the file system under revision as a mapping
@@ -1296,7 +1293,7 @@ mergeWithAncestor p a q =
 	stated in this section could be formally proved.
 	
 	% TODO remove when compiling the whole thesis	
-	\bibliographystyle{plain}
- 	\bibliography{../svc}
+%	\bibliographystyle{plain}
+% 	\bibliography{../svc}
 
 \end{document}

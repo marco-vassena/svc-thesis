@@ -4,9 +4,10 @@
 
 \chapter{Formal Model}
 \label{chapter:FormalModel}
-This chapter presents a formal model used to study the semantics of the \texttt{diff} and \texttt{diff3} algorithms and their properties.
-The model has been mechanically verified using the Agda proof assistant
-\cite{Bove09, NorellPhd, Norell08}.
+This chapter presents a formal model used to study the semantics of the \texttt{diff} and \texttt{diff3} algorithms.
+The model has been developed in the Agda proof assistant
+\cite{Bove09, NorellPhd, Norell08} and used to mechanically 
+verify several properties of the algorithms.
 In the presentation minor details such as implicit arguments and \texttt{Set} levels will be omitted to improve readability. 	
 
 \section{Introduction}
@@ -17,8 +18,9 @@ In the presentation minor details such as implicit arguments and \texttt{Set} le
 	leading to severe misconceptions \cite{PierceDiff3}.
 	
 	For instance it is often hard to predict the outcome of complex merging 	
-	operations and it is therefore unclear whether some conflicts detected are 	
-	accurate or consequence of a bug. 
+	operations.
+	It is unclear whether a conflict detected is indeed due to two irreconcilable 
+	edits or the consequence of a bug. 
 	Furthermore, even when merges are successful, they might produce 
 	unexpected	results, for instance duplicating lines or changing their order.
 	When software artifacts are under revision control, they might produce 
@@ -27,22 +29,20 @@ In the presentation minor details such as implicit arguments and \texttt{Set} le
 
 	A formal model would identify the specifications of these algorithms,
 	thus unambiguously clearing all these matters.
-	For example the conditions discussed in section \ref{subsec:conflicts}
-	sort out the first issue, while the second is addressed in section 
-	\ref{subsec:Embedding}.
+	For example the necessary condition discussed in section 
+	\ref{par:ConflictNec} sorts out the first issue and the safety
+	properties presented in \ref{subsec:Safety} address the second.
 
-	\subsection{General Description}
-	\todo{In this section the terminology is sometimes borrowed
-	from slightly different works on synchronizers. Is this confusing?}	
+	\subsection{Characteristics}
 	The basic characteristics of the merger devised in this thesis
 	are listed in this section. They should help the reader to grasp
 	its essential traits, to categorize it and quickly compare it to similar tools.
 	
 	\paragraph{Structured Data}
-	 Some tools target specific data formats, such as HTML and XML
-	 \cite{Lind04, Lind05}, or are specifically designed for software 
-	 artifacts, such as \cite{Apel11, Westfechtel91} and those surveyed in 
-	 \cite{Mens02}.	 
+	 Some tools, such as 3DM by Lindholm, target specific data formats, such as 
+	 HTML and XML \cite{Lind04, Lind05}, or are specifically designed for 
+	 software  artifacts \cite{Apel11, Westfechtel91}, like those
+	 survey by Mens \cite{Mens02}.
 	 There are also a number of file systems synchronizers like Unison
 	 \cite{Pierce98, UnisonSpec} and	 \cite{Ramsey01}.	 
 	 Similarly to \cite{Chawathe96, Chawathe97}, this work targets structured 
@@ -101,12 +101,12 @@ In the presentation minor details such as implicit arguments and \texttt{Set} le
 	this thesis is \emph{persistent}, i.e.\ when merging two replicas 
 	it will not back out the incompatible changes it may detect, 
 	but it will instead report a conflict to the user.
-	As Foster et al.\ remark in \cite{Pierce07}, persistence precludes 
-	\emph{convergence}, which instead guarantees that the merger
-	will always synchronize the two replicas to a same version, 
+	Foster et al.\ remark that persistence precludes 
+	\emph{convergence} \cite{Pierce07}, the guarantee
+	that the merger will always synchronize the two replicas to a same version, 
 	at the cost of backing out conflicting edits as needed.
 	
-	\subsection{Reasoning by specification}
+	\subsection{Reasoning by Specification}
 	\label{subsec:spec}
 	In Agda it is inconvenient and cumbersome to reason about algorithms directly.
 	Firstly proofs are non-reusable, because they are completely tailored 
@@ -130,8 +130,9 @@ In the presentation minor details such as implicit arguments and \texttt{Set} le
 	This is a general technique that can be employed in similar 
 	situations, furthermore it is lightweight because it only requires 
 	to show that the algorithm satisfies the specifications set.
-	This approach has been widely employed in this project with positive 
-	results,	 for example in \ref{subsec:Diff}, \ref{subsec:AlgoDiff}.
+	This approach, sometimes called the graph of the function 
+	\cite{FunctionDomains} has been widely employed in this project with 
+	positive results, for example in \ref{subsec:Diff}, \ref{subsec:AlgoDiff}.
 	
 	\subsection{Naming Conventions}
 	The following naming conventions will be consistently used in the rest of  
@@ -154,15 +155,14 @@ edit scripts. Then section \ref{subsec:Merge} explains the global
 alignment strategy deployed and formalizes the merging rules 
 for edits. Lastly sections \ref{subsec:Diff3} and \ref{subsec:Merged3} further elaborates on merging by extending it to edit scripts.
 
-	\subsection{DTree and DList}
+	\subsection{Heterogeneous Rose Trees}
 	\label{subsec:DTree}
 		Since the ultimate purpose of this work is to detect changes in 
 		data types, a generic suitable representation is chosen. 
-		Algebraic data types are isomorphic to ordered typed trees, in which 
-		labeled nodes corresponds to constructors. \todo{cite something 
-		appropriate?}
-
-
+		Algebraic data types are isomorphic to ordered heterogeneous typed 
+		trees, in which labeled nodes corresponds to constructors and
+		their children to their fields. 
+		
 		The mutually recursive data types \texttt{DTree} and \texttt{DList} are
 		defined as follows: 
 					
@@ -186,13 +186,44 @@ for edits. Lastly sections \ref{subsec:Diff3} and \ref{subsec:Merged3} further e
 		is shared by \texttt{F as a} and \texttt{DList as}, therefore  
 		representing a well-typed application of a constructor to arguments of 
 		the correct type.
-						
+
+
+	\paragraph{Example}
+	Consider a data type that represents arithmetic expressions:
+\begin{minted}{agda}
+data Expr : Set where
+  One : Expr
+  Add : Expr -> Expr -> Expr
+\end{minted}
+
+	Its constructor are represented by the following data type\footnote{As shown in this example Agda allows to overload constructors. It should
+	always be clear from the context to which type they refer.}:
+\begin{minted}{agda}
+data F : List Set -> Set -> Set where
+  One : F [] Expr
+  Add : F (Expr ∷ Expr ∷ []) Expr
+\end{minted}
+
+	The value \texttt{Add One One} is encoded as
+	the following tree:
+\begin{minted}{agda}
+two :: DTree Expr
+two = Node Add (Node One [] ∷ Node One [] ∷ [])
+\end{minted}
+
 		For simplicity the data type \texttt{F} is kept abstract using a postulate. 
 		Furthermore some basic functions to manipulate it are assumed.
 		
+		\todo{The difference between the two equality types was technical:
+		 The first is is ad-hoc heterogeneous equality for 
+		 nodes (as is different from bs), while the second is  the standard
+		 homogeneous equality. 
+		 For the presentation itself it does not make any difference,
+		 so I am going to use the second for both.}
+		
 \begin{minted}{agda}
   postulate F : List Set -> Set -> Set 
-  postulate _=?=_ : (α : F as a) (β : F bs b) -> Dec (α ≅ β)
+  postulate _=?=_ : (α : F as a) (β : F bs b) -> Dec (α ≡ β)
   postulate eq? : F as a  -> F bs b -> Dec (a ≡ b)
 \end{minted}
 
@@ -201,7 +232,7 @@ for edits. Lastly sections \ref{subsec:Diff3} and \ref{subsec:Merged3} further e
 	as described in \cite{Lemp09}, specifically using modules parametrized
 	by the family of mutually recursive types. 
 	I have decided to avoid this encoding to simplify the model.
-	
+		
 	\paragraph{Utility Functions}
 	\label{par:UtilityFun}
 	Two utility functions involving \texttt{DList} that will be used in the 
@@ -219,23 +250,24 @@ dsplit : ∀ {{as bs}} -> DList (as ++ bs) -> DList as × DList bs
 	as \emph{instance} arguments, a special type of implicit arguments 
 	that is automatically resolved at call-sites \cite{Devriese11}.
 		 
-	\subsection{Edit script}
+	\subsection{Edit Script}
 	\label{subsec:EditScript}
 	An edit script is a list of edit operations that transform the source object in
 	the target object.
 
-	The operations are defined over values:
-		
+	Single operations are defined over values, which denote the
+	presence or absence of a node. 
+			
 \begin{minted}{agda}
 data Val : List Set -> List Set -> Set where
   ⊥ : Val [] []
   ⟨_⟩ : F as a -> Val as [ a ] 
 \end{minted}
-	The empty value (\texttt{⊥}) denotes the absence of a node,
-	while \texttt{⟨ α ⟩} wraps the node \texttt{α}.
-	The two lists are indexes that stand respectively for the input and 
-	output types and are set accordingly to the presence or absence 
-	of a node.
+	The data type is indexed by two lists that respectively contain
+	 the types of the fields	of a node and its resulting type.
+	 Empty values do not store a node, hence their lists are both empty.
+	 These two indexes are needed to stack edits in a type safe
+	 manner.
 	
 	The edit operations considered in the model are a superset of the edit
 	operations normally found in GNU \texttt{diff} edit scripts and in 
@@ -246,7 +278,7 @@ data Val : List Set -> List Set -> Set where
 \begin{minted}{agda}
 data _~>_ : Val as bs -> Val cs ds -> Set where
   Nop : ⊥ ~> ⊥
-  Del : (α : F as a) -> ⟨ α ⟩ ~> c
+  Del : (α : F as a) -> ⟨ α ⟩ ~> ⊥
   Ins : (α : F as a) -> ⊥ ~> ⟨ α ⟩
   Upd : (α : F as a) (β : F bs a) -> ⟨ α ⟩ ~> ⟨ β ⟩
 \end{minted}
@@ -280,7 +312,8 @@ data ES : List Set -> List Set -> Set where
 	An edit script of type \texttt{ES xs ys} contains the edits
 	that transform a \texttt{DList xs}, called \emph{source}, 
 	in a \texttt{DList ys}, called \emph{target}. 
-	Moreover the source of an edit script can be reconstructed as follows:
+	The \emph{source function} \texttt{⟪ e ⟫} computes
+	the source of the source of the edit script \texttt{e}:
 		
 \begin{minted}{agda}
 ⟪_⟫ : ES as bs -> DList as
@@ -293,7 +326,8 @@ data ES : List Set -> List Set -> Set where
 ... | ds₁ , ds₂ = Node α ds₁ ∷ ds₂
 \end{minted}
 
-Analogously the object targeted by an edit script is given by:
+Analogously the \emph{target function} \texttt{⟦ e ⟧} 
+computes its target object:
 
 \begin{minted}{agda}
 ⟦_⟧ : ES as bs -> DList bs
@@ -312,7 +346,7 @@ leaving the list of its children, and similarly for \texttt{Ins α} in \texttt{�
 
 	\subsection{Diff}	
 	\label{subsec:Diff}
-	The data type \texttt{Diff xs ys e} is index over the \emph{source}  list 
+	The data type \texttt{Diff xs ys e} is indexed over the \emph{source}  list 
 	\texttt{xs} and the \emph{target} list \texttt{ys} and the edit script 
 	\texttt{e},  and represents the proof that \texttt{e} transforms \texttt{xs} 	in \texttt{ys}.
 	The two lists are used as stacks, from which arguments for 
@@ -331,7 +365,7 @@ data Diff : DList as -> DList bs -> ES as bs -> Set₁ where
 
 	The base rule \texttt{End} states that the empty edit script 
 	transforms the empty source list in the empty target list.
-	The other rules, one for each edit, append each a different edit 
+	Every other rule, one for each edit, appends a different edit 
 	to the edit script 	index and affect the input and target lists 
 	accordingly to their 	semantics: 
 	\texttt{Del} consumes the source list, \texttt{Ins} consumes the target list, 
@@ -363,7 +397,8 @@ mkDiff⟦_⟧ : Diff xs ys e -> ys ≡ ⟦ e ⟧
 	choose the more convenient. 
 	For instance pattern matching directly on terms involving \texttt{⟪ e ⟫} or
 	\texttt{⟦ e ⟧}	is usually not possible, because the function application
-	prevents unification. It is more convenient to introduce the term
+	in the indices prevents unification. 
+	It is more convenient to introduce the term
 	\texttt{Diff xs ys e} and set \texttt{xs} and \texttt{ys} in the terms, 
 	enabling case analysis. Lastly, using 
 	these equalities and exploiting rewriting techniques, it is possible
@@ -379,18 +414,17 @@ mkDiff⟦_⟧ : Diff xs ys e -> ys ≡ ⟦ e ⟧
 	When the sections of the two files disagree, the version of the ancestor
 	is taken into account. If all of them are different a conflict is detected,
 	otherwise the version that changed from the common ancestor is chosen.
-	\todo{A figure could be more direct here}
 	
 	To put this strategy on a formal footing a number of auxiliary definitions 
 	are needed. For example it is essential to define precisely the meaning 
 	of \emph{corresponding sections}. 
 	
 	\paragraph{Aligned}
-	Two edits are \emph{aligned} if they share the same source value.	
+	Two edit operations are \emph{aligned} if they share the same source value.	
 	Two aligned edits contain at most three distinct values: 
 	one common source and two, 	possibly different, targets, which 
 	are treated as corresponding sections.
-	Since the type of an edits uniquely determines its value, enforcing
+	Since the type of an edit uniquely determines its value, enforcing
 	the alignment of two edits is as simple as setting the same source value 
 	in their types: no additional data type is required.
 	
@@ -421,12 +455,11 @@ data _⊔_↧_ : v ~> a -> v ~> b -> v ~> c -> Set where
 	
 	Note that this definition is particularly effective because it is 
 	minimal and concise, for instance it does not mention specific
-	edits, but yet complete, since it can represent all the true specific merges.
+	edits, yet complete, since it can represent all the true specific merges.
 
 	Conflicts are represented by the following data type, indexed by 
 	a source value and two target values.
 
-\todo{smaller - margin}
 \begin{minted}{agda}	
 data Conflict : (u : F as bs) (v : F cs ds) (w : F es fs) -> Set where
   UpdUpd : (α : F as a) (β : F bs a) (γ : F cs a) -> Conflict ⟨ α ⟩ ⟨ β ⟩ ⟨ γ ⟩
@@ -458,18 +491,22 @@ data _⊔_↥_ : (v ~> w) -> (v ~> z) -> Conflict v w z -> Set where
 	Inequality is logically encoded in Agda as negated equality: the type 
 	\texttt{¬ P} is a synonym for \texttt{P -> ⊥}, where \texttt{⊥} is
 	the constructorless data type, which corresponds to falsity 
-	under the Curry-Howard isomorphism \todo{reference here}.
-	Sections \ref{par:MutualExclusion} and \ref{par:Determinism} include
+	under the Curry-Howard isomorphism \cite{PropositionAsTypes}.
+	Section \ref{par:MutualExclusion} include
 	theorems that explicitly rely on them.
 
-	Table \ref{table:merge} outlines the binary operator \texttt{⊔}, which 
-	merges two aligned edits and either fails raising a conflict or succeeds 
-	producing the merged edit.
+	The binary operator \texttt{⊔} merges two aligned edits.
+	For every pair of edits \texttt{f} and \texttt{g}, 
+	it either finds a suitable edit \texttt{h} and provide
+	a proof that \texttt{f ⊔ g ↧ h}, or detects a conflict \texttt{c}, 
+	with a proof that \texttt{f ⊔ g ↥ c}.
 
 \begin{minted}{agda}
 _⊔_ : (f : u ~> v) (g : u ~> w) -> (∃ λ c -> f ⊔ g ↥ c) ⊎ (∃ λ h -> f ⊔ g ↧ h)
 \end{minted}
-		
+
+	Table \ref{table:merge} schematically outlines its implementation.
+
 	\begin{table}[h]
 	\centering
 	\begin{tabular}{| c | c | c |}
@@ -532,7 +569,7 @@ data ES₃ : List Set -> Set where
 	the input type list, and preserves type-safety only with respect to it.
 	It also contains one additional constructor to include conflicts.
 	
-	The rules that specifies how aligned edit scripts are merged to produce
+	The rules that specify how aligned edit scripts are merged to produce
 	an \texttt{ES₃}, form the following data type:
 	
 \begin{minted}{agda}
@@ -555,16 +592,16 @@ Diff₃ _ _ {{p}} e₃ = p ⇓ e₃
 	
 	\subsection{Merged$_3$}
 	\label{subsec:Merged3}
-	Some of the properties presented in sections \ref{subsec:Embedding} and 
-	\ref{subsec:Safety} are restricted to successful \texttt{Diff₃}.
+	Some of the properties discussed in sections \ref{subsec:Safety} and
+	\ref{subsec:Embedding} are restricted only to successful \texttt{Diff₃}.
 	This section presents the corresponding specifications.
 
 	\paragraph{Definition}
 	A \texttt{Diff₃} is considered \emph{successful} if the merged edit script
 	does not contain any conflict and it is well-typed.
-	In fact a script of type \texttt{ES₃ as} is well-typed with respect to
-	the source list \texttt{as}, but may not be well-typed with respect to
-	the output list.
+	In fact a script of type \texttt{ES₃ as} is by-construction 
+	well-typed with respect to the source list \texttt{as}, 
+	but may not be well-typed with respect to the output list.
 	
 \begin{minted}{agda}
 data Merged₃ : ES xs ys -> ES xs zs -> ES xs ws -> Set where  
@@ -576,9 +613,15 @@ data Merged₃ : ES xs ys -> ES xs zs -> ES xs ws -> Set where
 	instead of \texttt{ES₃} as in \texttt{Diff₃}.
 	It is important to point out that the absence of conflicts does not imply that 
 	an edit script is well-typed.
-	 For example the following edit script is	ill-typed:
-	
-	\todo {example of ill-typed \texttt{ES₃}}
+	For example the following edit script is ill-typed:
+
+\begin{minted}{haskell}
+badExpr :: ES []
+badExpr = Ins Add ∷ Ins One :: []
+\end{minted}
+
+	The script produces an ill-typed tree, because\texttt{Add} is 
+	applied to only one 	expression.
 
 	The typing judgment \texttt{e ⇒ as} states that the edit script  \texttt{e} 
 	is well typed and produces a \texttt{DList as}.
@@ -591,9 +634,9 @@ data Merged₃ : ES xs ys -> ES xs zs -> ES xs ws -> Set where
 				\DisplayProof
 		}
 		\mbox{
-				\AxiomC{\texttt{e ⇒ cs ++ ys}}
-				\AxiomC{\texttt{w : Val cs ds}}
 				\AxiomC{\texttt{f : v \textasciitilde> w}}
+				\AxiomC{\texttt{w : Val cs ds}}
+				\AxiomC{\texttt{e ⇒ cs ++ ys}}
 				\TrinaryInfC{\texttt{f ∷ e ⇒ (ds ++ ys)}}
 				\DisplayProof
 		}
@@ -650,16 +693,41 @@ data Diff₃ : ES as bs -> ES as cs -> ES as bs -> Set where
 	the script and it is then typechecked to compute the most general type,
 	if one exists.	  
 		
+	\subsection{Summary}
+	This section has introduced the fundamental definitions
+	of the formal model. Section \ref{subsec:DTree} shows an encoding of 	
+	algebraic data types as heterogeneous rose trees, i.e.\ a combination of
+	\texttt{DTree} and \texttt{DList}, whose nodes correspond
+	to data type constructors. The edit script data type \texttt{ES xs ys} is a 
+	well-typed list of edits, which 	transform a source object, a \texttt{DList xs} 
+	given by by \texttt{⟪ e ⟫}, in a \texttt{DList ys} given by \texttt{⟦ e ⟧}.
+	The specifications of the \texttt{diff} algorithm are given by the 
+	\texttt{Diff x y e} data type, which is proved to be in a one to one 
+	relationship with \texttt{Diff ⟪ e ⟫ ⟦ e ⟧ e}.
+	Section \ref{subsec:Merge} defines the notion of \emph{aligned} edit 
+	scripts, for which a consistent merge semantics	is given. It consists of two
+	data types: \texttt{f ⊔ g ↧ h} denotes a successful merge
+	resulting in the edit \texttt{h}, while \texttt{f ⊔ g ↥ c} denotes
+	two irreconcilable edits that raise a conflict.
+	The binary operator \texttt{⊔} merges two aligned edit, producing
+	either of the two proofs.
+	After extending the alignment conditions to whole edit scripts 
+	(\texttt{e₁ ⋎ e₂}) the specifications of the \texttt{diff3} algorithm
+	are given in terms of the \texttt{Diff₃ e₁ e₂ e₃} data type.
+	The result of \texttt{diff3} is of type \texttt{ES₃ xs},
+	a variant of the previous edit script that may contain
+	conflicts and that is type safe only with respect to the input list.
+	Lastly the \texttt{Merged₃ e₁ e₂ e₃} type refines \texttt{Diff₃ e₁ e₂ e₃}
+	restricting \texttt{e₃} to be conflictless and well-typed with respect to the
+	output list.
+		
 \section{Algorithms}
-This section presents the algorithms \texttt{diff} and \texttt{diff3}.
-Finally their correctness is proved showing that they satisfy the specifications
-embodied respectively by \texttt{Diff} and \texttt{Diff₃}.
-\todo{Say something more about the structure of the section}
+This section presents the algorithms \texttt{diff} and \texttt{diff3} and proves that they satisfy the specifications embodied respectively by \texttt{Diff} and \texttt{Diff₃}.
 
 	\subsection{Diff}
 	\label{subsec:AlgoDiff}
 	A \texttt{diff} algorithm takes as input two objects 
-	and outputs an edit script that reports the differences among them.
+	and outputs an edit script that reports the differences between them.
 	It is convenient to model the edit script as a list of instructions that
 	transform the the first object, named \emph{source}, into the second,
 	named \emph{target}, applying edit operations to their nodes.
@@ -669,9 +737,13 @@ embodied respectively by \texttt{Diff} and \texttt{Diff₃}.
 	Conventionally edit scripts employ only delete, insert and copy operations,
 	however the model presented here slightly deviates, therefore an 
 	appropriate cost function is defined.
-	
-	\todo{Cite also Meaningful Changes in Structured Data for the cost model}	
-	
+	\todo{Nop is used only to align edit scripts in diff3, but not in the diff 
+	function. I did not assign cost 0 to it because, even if it does not
+	make any change, it increases the length of the edit script.
+	\texttt{diff} computes an edit script with minimal length:
+	for any script, a shorter, but equivalent one can be obtained
+	by removing any Nop it might contain.}
+
 \begin{minted}{agda}
 cost : ES as bs -> ℕ
 cost (Nop ∷ e) = 1 + cost e
@@ -724,6 +796,24 @@ diff (Node α xs₁ ∷ xs₂) (Node β ys₁ ∷ ys₂) with eq? α β
               ⨅ Ins β ∷ diff (Node α xs₁ ∷ xs₂) (ys₁ +++ ys₂)
 \end{minted}
 	
+	When one of the input list is empty the other is consumed 
+	by applying repeatedly either the \texttt{Ins} or \texttt{Del} edit
+	to the nodes left. When both are non empty there are three
+	alternatives. Either the input node can be consumed by \texttt{Del},
+	or the output node can be consumed by \texttt{Ins}, or, if
+	both nodes have the same type, the first can be mapped into
+	the second by \texttt{Upd}. Among these options, the best 
+	script is selected using the \texttt{⨅} operator.
+	Note that the \texttt{Nop} edit is never used because it does
+	not consume neither of the two lists: no progress can be made with it.
+
+	The algorithm implemented in this way is very inefficient,
+	because it contains several recursive calls that perform same 
+	sub-computations multiple times. 
+	The algorithm can be made practical with memoization \cite{Lemp09}.
+	The focus here is on correctness, rather than computational complexity, 
+	therefore this simpler version will be used.
+	
 	\paragraph{Technical remark}
 	Agda is a total language and therefore requires all the functions to 
 	terminate. Since termination is in general undecidable, Agda's termination 
@@ -774,11 +864,18 @@ Diff-suf : ∀ (xs : DList as) (ys : DList bs) -> Diff xs ys (diff xs ys)
 
 	The theorem intuitively holds because any edit script \texttt{e} that maps 
 	\texttt{xs} into \texttt{ys} satisfies \texttt{Diff xs ys e}.
-	In particular \texttt{diff xs ys} computes one of such edits with minimal 
-	length.
-	Note that, for the same reason, the converse does not hold.
-	Furthermore all the properties considered in the model hold regardless of 
-	the fact that the edit script involved is minimal.
+	The \texttt{diff} algorithm computes one of them and in particular the one
+	with minimal length. 
+	However note that \texttt{Diff xs ys e} does not imply that
+	that \texttt{e ≡ diff xs ys}, because it does not force \texttt{e} to be 
+	of minimal length.
+	Choosing a weaker specification was an aware design decision:
+	all the properties considered in the model hold regardless of 
+	the fact that the scripts are optimal. The advantage
+	of this choice is that at any time it is possible to change the \texttt{diff}
+	algorithm and the relative properties would still be valid.
+	For example an heuristic that quickly finds a suboptimal edit script 
+	may be employed to meet certain performance requirements.
 	
 	\paragraph{Discussion}
 	To minimize the cost function, the \texttt{diff} algorithm strives to 
@@ -791,14 +888,6 @@ Diff-suf : ∀ (xs : DList as) (ys : DList bs) -> Diff xs ys (diff xs ys)
 	source or the target object, but increases the cost of an edit-script.
 	The reason behind introducing this superfluous edit operation	will be 
 	clarified in \ref{subsec:diff3}.
-
-	The \texttt{diff} algorithm presented in this section is very inefficient,
-	because it contains several recursive calls that perform same 
-	sub-computations multiple times. 
-	To be usable in practice the algorithm could be improved using 
-	memoization \cite{Lemp09}, however the focus here is on correctness 
-	rather than computational complexity, therefore this simpler version will
-	be used.
 
 	\subsection{Diff$_3$}
 	\label{subsec:diff3}	
@@ -877,11 +966,10 @@ Diff₃-nec (conflict u q) | inj₂ (h , m) = ⊥-elim (mergeConflictExclusive m
 	producing a merged edit \texttt{h'}.
 	The first case is discharged by contradiction: merges and conflicts
 	are mutually exclusive.
-	The second case requires to show that the merged edits \texttt{h},
-	bound by \texttt{m} of type \texttt{f ⊔ g ↧ h}, and \texttt{h'}, bound by 
-	\texttt{m'} of type \texttt{f ⊔ g ↧ h'} are equivalent.
-	This follows from the property that \texttt{⊔} is deterministic, 
-	i.e.\ same inputs lead to same outputs.
+	The second case requires to show that the proofs \texttt{m : f ⊔ g ↧ h}
+	and \texttt{m' : f ⊔ g ↧ h'} imply that \texttt{h ≡ h'}.
+	This follows from the property that \texttt{⊔} is deterministic 
+	\cite{AlgebraOfProgramming}, i.e.\ same inputs lead to same outputs.
 	A similar line of reasoning applies in the second recursive
 	case (\texttt{conflict}), in which conflicts determinism
 	is used instead.
@@ -928,9 +1016,6 @@ mergeConflictExclusive (Idem f) (UpdUpd f f α≠β α≠γ β≠γ) = β≠γ r
 	has type \texttt{α ⋍ α -> ⊥}. By reflexivity (\texttt{refl}), \texttt{α ⋍ α} for
 	any \texttt{α}, then applying \texttt{α≠β} to it produces \texttt{⊥}.
 	
-	\todo{In TPT assignments we used the term \emph{determinism}:
-	is this the official term used in literature or maybe \emph{functional} 
-	is more appropriate?}
 	\paragraph{Determinism}
 	\label{par:Determinism}
 	Even though the \texttt{⊔} operator is a binary \emph{function}, 
@@ -946,11 +1031,11 @@ mergeConflictExclusive (Idem f) (UpdUpd f f α≠β α≠γ β≠γ) = β≠γ r
 	the relation, it follows that $z_1 = z_2$.
 	
 \begin{minted}{agda}
-mergeDeterministic : f ⊔ g ↧ h₁ -> f ⊔ g ↧ h₂ -> h₁ ≅ h₂
+mergeDeterministic : f ⊔ g ↧ h₁ -> f ⊔ g ↧ h₂ -> h₁ ≡ h₂
 mergeDeterministic (Id₁ f g) (Id₁ .f .g) = refl
-mergeDeterministic (Id₁ f g) (Id₂ .f .g) = edit-≅ g f
+mergeDeterministic (Id₁ f g) (Id₂ .f .g) = edit-≡ g f
 mergeDeterministic (Id₁ f .f) (Idem .f) = refl
-mergeDeterministic (Id₂ f g) (Id₁ .f .g) = edit-≅ f g
+mergeDeterministic (Id₂ f g) (Id₁ .f .g) = edit-≡ f g
 mergeDeterministic (Id₂ f g) (Id₂ .f .g) = refl
 mergeDeterministic (Id₂ f .f) (Idem .f) = refl
 mergeDeterministic (Idem f) (Id₁ .f .f) = refl
@@ -960,18 +1045,18 @@ mergeDeterministic (Idem f) (Idem .f) = refl
 
 	The proof follows almost directly from case analysis on the two arguments.
 	It is immediate when either the two constructors is \texttt{Idem}, because
-	it implies that \texttt{f ≅ g ≅ h}, and when the two constructors are the 
+	it implies that \texttt{f ≡ g ≡ h}, and when the two constructors are the 
 	same (\texttt{Id₁} and \texttt{Id₁}, \texttt{Id₂} and \texttt{Id₂}).
 	In the spurious cases left (\texttt{Id₁} and \texttt{Id₂}), the goal
-	is to show that \texttt{f ≅ g} 
+	is to show that \texttt{f ≡ g} 
 	given that they both have type \texttt{v \textasciitilde> v}.
 	The following lemma shows that two identity edits that shares the same 
 	value are indeed equal.
 	
 \begin{minted}{agda}
-edit-≅ : (f g : v ~> v) -> f ≅ g
-edit-≅ Nop Nop = refl
-edit-≅ (Upd α .α) (Upd .α .α) = refl
+edit-≡ : (f g : v ~> v) -> f ≡ g
+edit-≡ Nop Nop = refl
+edit-≡ (Upd α .α) (Upd .α .α) = refl
 \end{minted}	
 	
 	The proof for \texttt{f ⊔ g ↥ c} follows directly from case analysis on the 
@@ -994,15 +1079,9 @@ conflictDeterministic (DelUpd f g α≠β) (DelUpd .f .g α≠β₁) = refl
 	of the two edit scripts in the same order.
 	Unfortunately this is not enough to conclude that the two edit scripts 
 	are actually aligned, since inserts may occur at any point.
-	
-	\paragraph{Example}
-	The following edit scripts are generated from the same object,
-	but they are not aligned.
-	\todo{Figure + example}
-	
+		
 	Nevertheless it is possible to realign the two edit scripts, inserting
-	a finite number of \texttt{Nop} edits.
-	
+	a finite number of \texttt{Nop} edits.	
 	It is important to emphasize that, an edit script extended in this way
 	does not affect its semantics with respect to the source and target function.
 	\todo{Explicitly name source and target function when you define them}
@@ -1052,31 +1131,6 @@ Diff⋎ : Diff as bs e₁ -> Diff as cs e₂ -> e₁ ~ e₂
 	but, because of the number of uninteresting cases, it is lengthy 
 	and therefore omitted.
 
-	\todo{I don't think it is easy to explain this, should I keep this?
-			 Maybe it is best to continue the previous example}
-	When either \texttt{e₁} or \texttt{e₂} is empty, the other can contain
-	only \texttt{Ins} or \texttt{Nop}, because the shared source \texttt{xs} is
-	also empty. The remaining edits are aligned
-	inserting just as many \texttt{Nop} operations (\texttt{nop}). 
-	These are \emph{aligned} because they have the same source value 
-	\texttt{⊥}.
-	
-	If the scripts are both non-	empty their next edits may or may not
-	be aligned. 
-	
-	If they are not aligned it means that one source
-	value is \texttt{⊥} and the other is \texttt{⟨α⟩}. In this case
-	the tail of the former is aligned to the latter, calling \texttt{Diff⋎} 
-	recursively and a \texttt{Nop} is introduced to align the insert edit.
-	Note that the recursive call is valid, because an edit, whose
-	source value is \texttt{⊥}, does not consume the source object.
-
-	If they are aligned they can be directly combined with \texttt{cons}.
-	The tails of the scripts are aligned calling \texttt{Diff⋎} recursively.
-	This recursive call is also valid, because if both the source values are
-	\texttt{⊥}, the source is left untouched, otherwise the same node
-	is processed and popped from the same source.	
-
 	\paragraph{Diff$_3$}
 	Now it is possible to provide the conventional \texttt{diff₃} interface, in
 	which the second object is considered the old common version:
@@ -1095,7 +1149,7 @@ diff₃ ys xs zs | Align _ _ p = merge₃ p
 	
 \section{Formal Properties}
 \label{sec:FormalProp}
-In this section the formal model is enhanced studying some properties of the algorithms presented. As pointed out in \ref{subsec:spec}, the 
+In this section we will study some properties of the algorithms presented. As pointed out in \ref{subsec:spec}, the 
 properties will be proved using the specifications of the algorithms, rather
 than the algorithms themselves, so that the proofs will be simpler and 
 furthermore valid for any algorithm satisfying those specifications.
@@ -1153,15 +1207,15 @@ _,_⊢_~>[_,_] e₁ e₂ {{p}} u v w = Map⋎ u v w p
 	by:
 \begin{minted}{agda}
 data Failure (p : e₁ ⋎ e₂) : Conflict u v w -> Set where
-  InsIns : (α : View as a) (β : View bs b) -> e₁ , e₂ ⊢ ⊥ ~>[ ⟨ α ⟩ , ⟨ β ⟩ ] ->
+  InsIns : (α : F as a) (β : F bs b) -> e₁ , e₂ ⊢ ⊥ ~>[ ⟨ α ⟩ , ⟨ β ⟩ ] ->
           (α≠β : ¬ (α ⋍ β)) -> Failure p (InsIns α β)
-  UpdUpd : (α : View as a) (β : View bs a) (γ : View cs a) -> 
+  UpdUpd : (α : F as a) (β : F bs a) (γ : F cs a) -> 
              e₁ , e₂ ⊢ ⟨ α ⟩ ~>[ ⟨ β ⟩ , ⟨ γ ⟩ ] ->
              (α≠β : ¬(α ⋍ β)) (α≠γ : ¬ (α ⋍ γ)) (β≠γ : ¬(β ⋍ γ)) -> 
              Failure p (UpdUpd α β γ)
-  UpdDel : (α : View as a) (β : View bs a) -> e₁ , e₂  ⊢ ⟨ α ⟩ ~>[ ⟨ β ⟩ , ⊥ ] ->
+  UpdDel : (α : F as a) (β : F bs a) -> e₁ , e₂  ⊢ ⟨ α ⟩ ~>[ ⟨ β ⟩ , ⊥ ] ->
             (α≠β : ¬(α ⋍ β)) -> Failure p (UpdDel α β)
-  DelUpd : (α : View as a) (β : View bs a) -> e₁ , e₂  ⊢ ⟨ α ⟩ ~>[ ⊥ ,  ⟨ β ⟩ ] ->
+  DelUpd : (α : F as a) (β : F bs a) -> e₁ , e₂  ⊢ ⟨ α ⟩ ~>[ ⊥ ,  ⟨ β ⟩ ] ->
              (α≠β : ¬(α ⋍ β)) -> Failure p (DelUpd α β)
 \end{minted}
 
@@ -1186,28 +1240,15 @@ _,_↥_ e₁ e₂ {{p}} c = Failure p c
 \end{minted}
 	
 	\paragraph{Necessary}
-	The following theorem shows that, if \texttt{e₃} merges \texttt{e₁} and
+	\label{par:ConflictNec}
+	The following theorem asserts that if \texttt{e₃} merges \texttt{e₁} and
 	\texttt{e₂} and \texttt{c ∈ᶜ e₃}, then it follows that \texttt{e₁ ,e₂ ↥ c}.
 	
 \begin{minted}{agda}
 conflict-nec : c ∈ᶜ e₃ -> Diff₃ e₁ e₂ e₃ -> e₁ , e₂ ↥ c
-conflict-nec (here (UpdUpd α β γ)) (conflict (UpdUpd f g α≠β α≠γ β≠γ) d) 
-  = UpdUpd α β γ (here f g) α≠β α≠γ β≠γ
-conflict-nec (here (DelUpd α β)) (conflict (DelUpd f g α≠β) d) 
-  = DelUpd α β (here f g) α≠β
-conflict-nec (here (UpdDel α β)) (conflict (UpdDel f g α≠β) d) 
-  = UpdDel α β (here f g) α≠β
-conflict-nec (here (InsIns α β)) (conflict (InsIns f g α≠β) d) 
-  = InsIns α β (here f g) α≠β
-conflict-nec (there x q) (merge m d) = cons↥ (conflict-nec q d)
-conflict-nec (thereᶜ c q) (conflict u d) = cons↥ (conflict-nec q d)
 \end{minted}
 
-	The proof is simple and by induction. 
-	The lemma \texttt{cons↥} is used in the
-	recursive cases and extends \texttt{Failure p c} with an additional 
-	\texttt{cons} constructor to \texttt{Failure (cons f g p) c}. The lemma
-	is straightforward and also proved by induction.
+	The proof is by straightforward induction and thus omitted.
 
 	\paragraph{Sufficiency}
 	The converse theorem is slightly more involved.
@@ -1251,8 +1292,8 @@ The presence of the latter is bogus: a conflict should occur, yet merge is repor
 	in the list of trees \texttt{ts}.
 
 \begin{minted}{agda}
-data _∈_ : ∀ {ys xs a} -> View xs a -> DList ys -> Set where
-  here : (α : View as a) -> α ∈ Node α ts₁ ∷ ts₂
+data _∈_ : ∀ {ys xs a} -> F xs a -> DList ys -> Set where
+  here : (α : F as a) -> α ∈ Node α ts₁ ∷ ts₂
   there : α ∈ ts₁ +++ ts₂ -> α ∈ Node β ts₁ ∷ ts₂
 \end{minted}
 
@@ -1264,18 +1305,19 @@ data _∈ₑ_ : v ~> w -> ES xs ys -> Set where
   there : (g : w ~> z) -> f ∈ₑ e -> f ∈ₑ g ∷ e
 \end{minted}
 	
-	The following wrapper data type will be often used for the safety properties.
+	The following wrapper data type will be often used for the 
+	safety properties.
+	The judgment \texttt{e ⊢ₑ u \textasciitilde>v} means that in 
+	\texttt{e} the value \texttt{u} is mapped to \texttt{v}. 
 
 \begin{minted}{agda}
 data _⊢ₑ_~>_  (e : ES xs ys) : Val as bs -> Val cs ds -> Set where
   Nop : Nop ∈ₑ e -> e ⊢ₑ ⊥ ~> ⊥
-  Del : (α : View as a) -> Del α ∈ₑ e -> e ⊢ₑ ⟨ α ⟩ ~> ⊥
-  Ins : (α : View as a) -> Ins α ∈ₑ e -> e ⊢ₑ ⊥ ~> ⟨ α ⟩
-  Upd : (α : View as a) (β : View bs a) -> Upd α β ∈ₑ e -> e ⊢ₑ ⟨ α ⟩ ~> ⟨ β ⟩ 
+  Del : (α : F as a) -> Del α ∈ₑ e -> e ⊢ₑ ⟨ α ⟩ ~> ⊥
+  Ins : (α : F as a) -> Ins α ∈ₑ e -> e ⊢ₑ ⊥ ~> ⟨ α ⟩
+  Upd : (α : F as a) (β : F bs a) -> Upd α β ∈ₑ e -> e ⊢ₑ ⟨ α ⟩ ~> ⟨ β ⟩ 
 \end{minted}
 
-	The judgment \texttt{e ⊢ₑ u \textasciitilde>v} means that in \texttt{e} the 
-	value \texttt{u} is mapped to \texttt{v}. 
 	
 %	The following auxiliary function is defined by induction on it:
 %	\todo{remove if never mentioned}
@@ -1330,7 +1372,7 @@ noSourceMadeUp p q rewrite mkDiff⟪ q ⟫ = sourceOrigin p
 	to the target (source) object, is to be found as target (source) value 
 	in some edit in the script that converts the former to the latter.
 
-	\todo{better name noSourceForget?}
+	%\todo{better name noSourceForget?}
 \begin{minted}{agda}
 noSourceErase : Diff x y e -> α ∈ x -> ∃ (λ v -> e ⊢ₑ ⟨ α ⟩ ~> v)
 noTargetErase : Diff x y e -> α ∈ y -> ∃ (λ v -> e ⊢ₑ v ~> ⟨ α ⟩) 
@@ -1382,30 +1424,30 @@ data NoCnf : ES₃ as -> Set where
 	\ref{par:membership}, just indexed over a script of type \texttt{ES₃ as}
 	instead of one of 	type \texttt{ES as bs}.
 	
-	\todo{Fix Margin}
 \begin{minted}{agda}
 noBackOutChanges₁ : Change f -> Diff₃ e₁ e₂ e₃ -> f ∈ₑ e₁ -> NoCnf e₃ -> f ∈₃ e₃
-noBackOutChanges₁ (IsChange v≠w) (merge (Id₁ f g) d) (here .f) _ = ⊥-elim (v≠w refl)
-noBackOutChanges₁ (IsChange v≠w) (merge (Id₂ f g ) d) (here .f) _ = here f
-noBackOutChanges₁ (IsChange v≠w) (merge (Idem f) d) (here .f) _ = here f
-noBackOutChanges₁ c (conflict u d) (here f) ()
-noBackOutChanges₁ c (merge m d) (there f₁ p) (h ∷ q) = there h (noBackOutChanges₁ c d p q)
-noBackOutChanges₁ c (conflict u₁ d) (there f₁ p₁) ()
 \end{minted}
+%noBackOutChanges₁ (IsChange v≠w) (merge (Id₁ f g) d) (here .f) _ = ⊥-elim (v≠w refl)
+%noBackOutChanges₁ (IsChange v≠w) (merge (Id₂ f g ) d) (here .f) _ = here f
+%noBackOutChanges₁ (IsChange v≠w) (merge (Idem f) d) (here .f) _ = here f
+%noBackOutChanges₁ c (conflict u d) (here f) ()
+%noBackOutChanges₁ c (merge m d) (there f₁ p) (h ∷ q) = there h (noBackOutChanges₁ c d p q)
+%noBackOutChanges₁ c (conflict u₁ d) (there f₁ p₁) ()
+%\end{minted}
 
 	The theorem is proved by induction on \texttt{f ∈ₑ e₁} and 
 	\texttt{Diff₃ e₁ e₂ e₃}.
-	In the base cases (\texttt{here}), the edit \texttt{f} may be merged or
-	it might raise a conflict. The latter case is contradictory: \texttt{NoCnf e₃}
-	excludes the presence of any conflict.
-	In the former case the merge data type is further inspected and produces 
-	three cases.
-	The first case (\texttt{Id₁}) is discharged as impossible because it 
-	contradicts \texttt{Change f}, which asserts that \texttt{f} is not identity.
-	The other two cases reveal that \texttt{f} is actually the merged edit
-	and thus it is present in \texttt{e₃}.
-	The \texttt{merge} recursive case is solved by inductive hypothesis, while
-	the \texttt{conflict} recursive case is dismissed as before.
+%	In the base cases (\texttt{here}), the edit \texttt{f} may be merged or
+%	it might raise a conflict. The latter case is contradictory: \texttt{NoCnf e₃}
+%	excludes the presence of any conflict.
+%	In the former case the merge data type is further inspected and produces 
+%	three cases.
+%	The first case (\texttt{Id₁}) is discharged as impossible because it 
+%	contradicts \texttt{Change f}, which asserts that \texttt{f} is not identity.
+%	The other two cases reveal that \texttt{f} is actually the merged edit
+%	and thus it is present in \texttt{e₃}.
+%	The \texttt{merge} recursive case is solved by inductive hypothesis, while
+%	the \texttt{conflict} recursive case is dismissed as before.
 
 	The same theorem holds for edits that belong to the second edit.
 	
@@ -1416,7 +1458,6 @@ noBackOutChanges₂ c d p q = noBackOutChanges₁ c (⇓-sym d q) p q
 	
 	This is actually a corollary of the previous theorem, since
 	\texttt{Diff₃} is symmetric in absence of conflicts.
-	\todo{Add properties when introduce \texttt{⋎}}
 	
 \begin{minted}{agda}
 ⇓-sym : p ⇓ e₃ -> NoCnf e₃ -> (⋎-sym p) ⇓ e₃
@@ -1442,7 +1483,6 @@ noEditMadeUp (thereᶜ c p) (conflict u d) = S.map (there _) (there _) (noEditMa
 	The last safety property states that a successful \texttt{Merged₃}
 	produces an edit script, whose output type is a subset of the output
 	types of the input scripts.
-	\todo{Connection to Pierce schema consideration}
 	
 	The following data type defines precisely such relation:
 
@@ -1457,7 +1497,7 @@ data _⊆_,_ : List Set -> List Set -> List Set -> Set where
 \end{minted}
 
 	The type \texttt{xs ⊆ ys , zs} denotes that the list \texttt{xs} is a subset
-	of both \texttt{ys} and \texttt{zs}.
+	of the union of \texttt{ys} and \texttt{zs}.
 	This is obvious in the basic constructor \texttt{stop}, when all
 	the lists are empty.
 	The invariant maintained by the \texttt{cons} constructors is that, for any
@@ -1480,53 +1520,57 @@ typesOf (Node {a = a} α ts₁ ∷ ts₂) = a ∷ typesOf ts₁ ++ typesOf ts₂
 
 	Upon a successful merge, the types of the target object of the merged script
 	is a subset of the types of the targets of the two input edits.
-	\todo{Is this too long and should be omitted?}
-	\todo{A table is maybe more readable?}
+
 \begin{minted}{agda}	
 mixOf : Merged₃ e₁ e₂ e₃ -> typesOf ⟦ e₃ ⟧ ⊆ typesOf ⟦ e₁ ⟧ , typesOf ⟦ e₂ ⟧
-mixOf nil = stop
-mixOf (cons (Id₁ Nop Nop) p) = mixOf p
-mixOf (cons {e₂ = e₂} {e₃} (Id₁ Nop (Ins α)) p) rewrite
-  typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₂ (mixOf p)
-mixOf (cons {e₁ = e₁} (Id₁ (Upd α .α) (Del .α)) p) rewrite
-  typesOf⟦ e₁ ⟧ = drop₁ (mixOf p)
-mixOf (cons {e₁ = e₁} {e₂} {e₃} (Id₁ (Upd α .α) (Upd .α β)) p) rewrite
-  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
-mixOf (cons (Id₂ Nop Nop) p) = mixOf p
-mixOf (cons {e₂ = e₂} (Id₂ (Del α) (Upd .α .α)) p) rewrite
-  typesOf⟦ e₂ ⟧ = drop₂ (mixOf p)
-mixOf (cons {e₁ = e₁} {e₃ = e₃} (Id₂ (Ins α) Nop) p) rewrite
-  typesOf⟦ e₁ ⟧ | typesOf⟦ e₃ ⟧ = cons₁ (mixOf p)
-mixOf (cons {e₁ = e₁} {e₂} {e₃} (Id₂ (Upd α β) (Upd .α .α)) p) rewrite
-  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
-mixOf (cons (Idem Nop) p) = mixOf p
-mixOf (cons (Idem (Del α)) p) = mixOf p
-mixOf (cons {e₁ = e₁} {e₂} {e₃} (Idem (Ins α)) p) rewrite 
-  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
-mixOf (cons {e₁ = e₁} {e₂} {e₃} (Idem (Upd α β)) p) rewrite 
-  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
 \end{minted}
 
-	The base case is trivial.
-	In the recursive cases, the constructors \texttt{drop₁} and \texttt{drop₂} 
-	apply when respectively the first and the second edit are delete, and the
-	other is just a copy. The merged edit is delete and \texttt{drop} removes
-	the types of the elements merely copied.
-	The constructors \texttt{cons₁} and \texttt{cons₂} apply respectively
-	when the first and the second edit are either insert or update and the other
-	is just copy or a no-operation.
-	The constructor \texttt{cons₁₂} is used when both the edits agree on the
-	same insert or update operation. In the remaining cases (\texttt{Nop} and 
-	\texttt{Nop}, \texttt{Del} and \texttt{Del}) no constructor is needed, because
-	they do not affect \texttt{⟦\_⟧}.
-	\todo{Is this explanation useful?}
-	
-	Some simple manipulations, in the form of goal rewriting, are used:
-\begin{minted}{agda}
-typesOf⟦_⟧ : (e : ES xs (ys ++ zs)) -> let ds₁ , ds₂ = dsplit ⟦ e ⟧ in 
-               typesOf ds₁ ++ typesOf ds₂ ≡ typesOf ⟦ e ⟧
-\end{minted}
-	The proof is straightforward and relies on distributivity of \texttt{typesOf} over \texttt{+++} and associativity of \texttt{++}.
+	\todo{Connection to Pierce schema consideration}
+	\todo{Explanation}
+
+%mixOf nil = stop
+%mixOf (cons (Id₁ Nop Nop) p) = mixOf p
+%mixOf (cons {e₂ = e₂} {e₃} (Id₁ Nop (Ins α)) p) rewrite
+%  typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₂ (mixOf p)
+%mixOf (cons {e₁ = e₁} (Id₁ (Upd α .α) (Del .α)) p) rewrite
+%  typesOf⟦ e₁ ⟧ = drop₁ (mixOf p)
+%mixOf (cons {e₁ = e₁} {e₂} {e₃} (Id₁ (Upd α .α) (Upd .α β)) p) rewrite
+%  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
+%mixOf (cons (Id₂ Nop Nop) p) = mixOf p
+%mixOf (cons {e₂ = e₂} (Id₂ (Del α) (Upd .α .α)) p) rewrite
+%  typesOf⟦ e₂ ⟧ = drop₂ (mixOf p)
+%mixOf (cons {e₁ = e₁} {e₃ = e₃} (Id₂ (Ins α) Nop) p) rewrite
+%  typesOf⟦ e₁ ⟧ | typesOf⟦ e₃ ⟧ = cons₁ (mixOf p)
+%mixOf (cons {e₁ = e₁} {e₂} {e₃} (Id₂ (Upd α β) (Upd .α .α)) p) rewrite
+%  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
+%mixOf (cons (Idem Nop) p) = mixOf p
+%mixOf (cons (Idem (Del α)) p) = mixOf p
+%mixOf (cons {e₁ = e₁} {e₂} {e₃} (Idem (Ins α)) p) rewrite 
+%  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
+%mixOf (cons {e₁ = e₁} {e₂} {e₃} (Idem (Upd α β)) p) rewrite 
+%  typesOf⟦ e₁ ⟧ | typesOf⟦ e₂ ⟧ | typesOf⟦ e₃ ⟧ = cons₁₂ (mixOf p)
+%\end{minted}
+%
+%	The base case is trivial.
+%	In the recursive cases, the constructors \texttt{drop₁} and \texttt{drop₂} 
+%	apply when respectively the first and the second edit are delete, and the
+%	other is just a copy. The merged edit is delete and \texttt{drop} removes
+%	the types of the elements merely copied.
+%	The constructors \texttt{cons₁} and \texttt{cons₂} apply respectively
+%	when the first and the second edit are either insert or update and the other
+%	is just copy or a no-operation.
+%	The constructor \texttt{cons₁₂} is used when both the edits agree on the
+%	same insert or update operation. In the remaining cases (\texttt{Nop} and 
+%	\texttt{Nop}, \texttt{Del} and \texttt{Del}) no constructor is needed, because
+%	they do not affect \texttt{⟦\_⟧}.
+%	\todo{Is this explanation useful?}
+%	
+%	Some simple manipulations, in the form of goal rewriting, are used:
+%\begin{minted}{agda}
+%typesOf⟦_⟧ : (e : ES xs (ys ++ zs)) -> let ds₁ , ds₂ = dsplit ⟦ e ⟧ in 
+%               typesOf ds₁ ++ typesOf ds₂ ≡ typesOf ⟦ e ⟧
+%\end{minted}
+%	The proof is straightforward and relies on distributivity of \texttt{typesOf} over \texttt{+++} and associativity of \texttt{++}.
 
 	\subsection{Maximality}
 	\label{subsec:Maximality}
@@ -1590,11 +1634,11 @@ Diff₃-maximal (merge (Idem f) p) (.f ∷ q) = Idem f (Diff₃-maximal p q)
 	Therefore the embedding-preserving property has to be adjusted to
 	take these transformations into account.
 	
-	This section is structured as follows. Firstly the depth-first ordering
+	This section is structured as follows. Firstly the depth-first ordering on trees
 	is formally defined and a similar relation is defined over
 	edit scripts. Secondly the equivalence
 	between these relations is proved. Lastly the proof that the same 
-	property holds upon successful merges is presented.
+	property holds for successful merges is presented.
 	
 	\paragraph{Depth-First ordering}
 	A pre-order depth-first traversal consists of
@@ -1610,8 +1654,8 @@ Diff₃-maximal (merge (Idem f) p) (.f ∷ q) = Idem f (Diff₃-maximal p q)
 	depth first traversal.
 	
 \begin{minted}{agda}
-data _⊢_⊏_ : DList xs -> View as a -> View bs b -> Set where
-  here : (α : View as a) -> β ∈ (ts₁ +++ ts₂) -> Node α ts₁ ∷ ts₂ ⊢ α ⊏ β
+data _⊢_⊏_ : DList xs -> F as a -> F bs b -> Set where
+  here : (α : F as a) -> β ∈ (ts₁ +++ ts₂) -> Node α ts₁ ∷ ts₂ ⊢ α ⊏ β
   there : ts₁ +++ ts₂ ⊢ α ⊏ β -> Node γ ts₁ ∷ ts₂ ⊢ α ⊏ β
 \end{minted}
 
@@ -1642,38 +1686,40 @@ data _⊢ₑ_⊏_ : ES xs ys -> u ~> v -> w ~> z -> Set where
 	preserves the order of their source nodes:	
 \begin{minted}{agda}
 ⟪⟫-⊏ : (f : ⟨ α ⟩ ~> v) (g : ⟨ β ⟩ ~> w) -> e ⊢ₑ f ⊏ g -> ⟪ e ⟫ ⊢ α ⊏ β
-⟪⟫-⊏ (Del α) g (here .(Del α) o) = here α (∈-dsplit _ (∈-⟪⟫ o))
-⟪⟫-⊏ (Upd α β) g (here .(Upd α β) o) = here α (∈-dsplit _ (∈-⟪⟫ o))
-⟪⟫-⊏ f g (there (Ins _) p) = ⟪⟫-⊏ f g p
-⟪⟫-⊏ f g (there {e = e} (Del _) p) = there (⟪⟫-lemma e (⟪⟫-⊏ f g p))
-⟪⟫-⊏ f g (there {e = e} (Upd _ _) p) = there (⟪⟫-lemma e (⟪⟫-⊏ f g p))
-⟪⟫-⊏ f g (there Nop p) = ⟪⟫-⊏ f g p
 \end{minted}
 
-	The proof is by induction over \texttt{e ⊢ₑ f ⊏ g} and employs
-	the safety lemma \texttt{∈-⟪⟫} discussed in \ref{subsec:Safety} and 
-	some auxiliary functions:
-\todo{rename \texttt{⟪⟫-lemma} to \texttt{⟪⟫-dsplit}}
-\begin{minted}{agda}
-⟪⟫-lemma : (e : ES (xs ++ ys) zs) -> let ds₁ , ds₂ = dsplit ⟪ e ⟫ in 
-              ⟪ e ⟫ ⊢ α ⊏ β -> ds₁ +++ ds₂ ⊢ α ⊏ β
-
-∈-dsplit : (α : View as a) -> let ds₁ , ds₂ = dsplit ds in 
-            α ∈ ds -> α ∈ ds₁ +++ ds₂
-\end{minted}
-	Note that the only edits with type \texttt{⟨ α ⟩ \textasciitilde> v} are \texttt{Del α}
-	and \texttt{Upd α β}.
+%⟪⟫-⊏ (Del α) g (here .(Del α) o) = here α (∈-dsplit _ (∈-⟪⟫ o))
+%⟪⟫-⊏ (Upd α β) g (here .(Upd α β) o) = here α (∈-dsplit _ (∈-⟪⟫ o))
+%⟪⟫-⊏ f g (there (Ins _) p) = ⟪⟫-⊏ f g p
+%⟪⟫-⊏ f g (there {e = e} (Del _) p) = there (⟪⟫-lemma e (⟪⟫-⊏ f g p))
+%⟪⟫-⊏ f g (there {e = e} (Upd _ _) p) = there (⟪⟫-lemma e (⟪⟫-⊏ f g p))
+%⟪⟫-⊏ f g (there Nop p) = ⟪⟫-⊏ f g p
+	\todo{Provide more intuition}
+	The proof is by induction over \texttt{e ⊢ₑ f ⊏ g}.
+%	 and employs
+%	the safety lemma \texttt{∈-⟪⟫} discussed in \ref{subsec:Safety} and 
+%	some auxiliary functions:
+%\todo{rename \texttt{⟪⟫-lemma} to \texttt{⟪⟫-dsplit}}
+%\begin{minted}{agda}
+%⟪⟫-lemma : (e : ES (xs ++ ys) zs) -> let ds₁ , ds₂ = dsplit ⟪ e ⟫ in 
+%              ⟪ e ⟫ ⊢ α ⊏ β -> ds₁ +++ ds₂ ⊢ α ⊏ β
+%
+%∈-dsplit : (α : F as a) -> let ds₁ , ds₂ = dsplit ds in 
+%            α ∈ ds -> α ∈ ds₁ +++ ds₂
+%\end{minted}
+%	Note that the only edits with type \texttt{⟨ α ⟩ \textasciitilde> v} are \texttt{Del α}
+%	and \texttt{Upd α β}.
 	
 	A symmetric result is proved for \texttt{⟦\_⟧}:
 \begin{minted}{agda}
 ⟦⟧-⊏ : (f : v ~> ⟨ α ⟩) (g : w ~> ⟨ β ⟩) -> e ⊢ₑ f ⊏ g -> ⟦ e ⟧ ⊢ α ⊏ β
-⟦⟧-⊏ (Ins α) g (here .(Ins α) o) = here α (∈-dsplit _ (∈-⟦⟧ o))
-⟦⟧-⊏ (Upd α β) g (here .(Upd α β) o) = here β (∈-dsplit _ (∈-⟦⟧ o))
-⟦⟧-⊏ f g (there {e = e} (Ins α) p) = there (⟦⟧-lemma e (⟦⟧-⊏ f g p))
-⟦⟧-⊏ f g (there (Del α) p) = ⟦⟧-⊏ f g p
-⟦⟧-⊏ f g (there {e = e} (Upd α β) p) = there (⟦⟧-lemma e (⟦⟧-⊏ f g p))
-⟦⟧-⊏ f g (there Nop p) = ⟦⟧-⊏ f g p
 \end{minted}
+%⟦⟧-⊏ (Ins α) g (here .(Ins α) o) = here α (∈-dsplit _ (∈-⟦⟧ o))
+%⟦⟧-⊏ (Upd α β) g (here .(Upd α β) o) = here β (∈-dsplit _ (∈-⟦⟧ o))
+%⟦⟧-⊏ f g (there {e = e} (Ins α) p) = there (⟦⟧-lemma e (⟦⟧-⊏ f g p))
+%⟦⟧-⊏ f g (there (Del α) p) = ⟦⟧-⊏ f g p
+%⟦⟧-⊏ f g (there {e = e} (Upd α β) p) = there (⟦⟧-lemma e (⟦⟧-⊏ f g p))
+%⟦⟧-⊏ f g (there Nop p) = ⟦⟧-⊏ f g p
 	
 	The converse lemma cannot be defined so easily.
 	It would have the signature:
@@ -1688,10 +1734,10 @@ data _⊢ₑ_⊏_ : ES xs ys -> u ~> v -> w ~> z -> Set where
 	two auxiliary data types.
 	 
 \begin{minted}{agda}
-data _⊢ˢ_⊏_ (e : ES xs ys) (α : View as a) (β : View bs b) : Set where
+data _⊢ˢ_⊏_ (e : ES xs ys) (α : F as a) (β : F bs b) : Set where
   source-⊏ : {f : ⟨ α ⟩ ~> v} {g : ⟨ β ⟩ ~> w} -> e ⊢ₑ f ⊏ g -> e ⊢ˢ α ⊏ β 
 
-data _⊢ᵗ_⊏_ (e : ES xs ys) (α : View as a) (β : View bs b) : Set where
+data _⊢ᵗ_⊏_ (e : ES xs ys) (α : F as a) (β : F bs b) : Set where
   target-⊏ :  {f : v ~> ⟨ α ⟩} {g : w ~> ⟨ β ⟩} -> e ⊢ₑ f ⊏ g -> e ⊢ᵗ α ⊏ β
 \end{minted}
 
@@ -1736,15 +1782,16 @@ diff-⊏ᵗ : Diff x y e -> y ⊢ α ⊏ β -> e ⊢ᵗ α ⊏ β
 \begin{itemize}
 	\item \texttt{α} is deleted in \texttt{e};
 	\item \texttt{β} is deleted in \texttt{e};
-	\item There are two nodes \texttt{γ} and \texttt{φ}, such that \texttt{α} is 
-	mapped to \texttt{γ}, \texttt{β} is mapped to \texttt{φ} in \texttt{e} and 
+	\item There are two nodes \texttt{γ} and \texttt{φ}, such that the node 
+	\texttt{α} is 	mapped to \texttt{γ}, the node \texttt{β} is mapped to 
+	\texttt{φ} in \texttt{e} and 
 	in the target	object, the node \texttt{γ} comes before \texttt{φ}
 \end{itemize}
 
 	The type \texttt{e ↦ α ⊏ β} denotes that \texttt{e} is a (source) 
 	order-preserving embedding:
 \begin{minted}{agda}
-data _↦_⊏_ (e : ES xs ys) (α : View as a) (β : View bs b) : Set where
+data _↦_⊏_ (e : ES xs ys) (α : F as a) (β : F bs b) : Set where
   Del₁ : e ⊢ₑ ⟨ α ⟩ ~> ⊥ -> e ↦ α ⊏ β
   Del₂ : e ⊢ₑ ⟨ β ⟩ ~> ⊥ -> e ↦ α ⊏ β
   Map₂ : e ⊢ₑ ⟨ α ⟩ ~> ⟨ γ ⟩ -> e ⊢ₑ ⟨ β ⟩ ~> ⟨ φ ⟩ -> ⟦ e ⟧ ⊢ γ ⊏ φ -> e ↦ α ⊏ β
@@ -1784,36 +1831,38 @@ preserve-↦ p | source-⊏ {f = Upd α γ} {Upd β φ} x
 
 	The second theorem is symmetrical to the first and thus it will be briefly 
 	sketched.
-	Conversely it states that, given an edit script \texttt{e}, if in its
+	It states that, given an edit script \texttt{e}, if in its
 	target object a node \texttt{α} comes before
 	some node \texttt{β}, then one of the following holds:
 	\begin{itemize}
 		\item \texttt{α} is inserted in \texttt{e};
 		\item \texttt{β} is inserted in \texttt{e};
-		\item There are two nodes \texttt{γ} and \texttt{φ}, such that \texttt{γ} is 
-		mapped to \texttt{α}, \texttt{φ} is mapped to \texttt{β} in \texttt{e} and 
-		in the source object, the node \texttt{γ} comes before \texttt{φ}
+		\item There are two nodes \texttt{γ} and \texttt{φ}, such that the node 
+		\texttt{γ} is mapped to \texttt{α}, the node \texttt{φ} is mapped to 
+		\texttt{β} in 	\texttt{e} and in the source object, 
+		the node \texttt{γ} comes before \texttt{φ}
 	\end{itemize}
 
 	The type \texttt{e ↦ α ⊏ β} denotes that \texttt{e} is a (target) 
 	order-preserving embedding:
 
 \begin{minted}{agda}
-data _↤_⊏_ (e : ES xs ys) (α : View as a) (β : View bs b) : Set where
+data _↤_⊏_ (e : ES xs ys) (α : F as a) (β : F bs b) : Set where
   Ins₁ : e ⊢ₑ ⊥ ~> ⟨ α ⟩ -> e ↤ α ⊏ β
   Ins₂ : e ⊢ₑ ⊥ ~> ⟨ β ⟩ -> e ↤ α ⊏ β
   Map₂ : e ⊢ₑ ⟨ γ ⟩ ~> ⟨ α ⟩ -> e ⊢ₑ ⟨ φ ⟩ ~> ⟨ β ⟩ -> ⟪ e ⟫ ⊢ γ ⊏ φ -> e ↤ α ⊏ β
 \end{minted}
          
-	The proof follows the same structure and will not be discussed any further.
+	The proof follows the same structure as \texttt{preserve-↦} 
+	and will not be discussed any further.
 \begin{minted}{agda}
 preserve-↤ :  ⟦ e ⟧ ⊢ α ⊏ β -> e ↤ α ⊏ β 
-preserve-↤ {e = e} p with diff-⊏ᵗ (mkDiff e) p
-preserve-↤ p | target-⊏ {f = Ins α} x = Ins₁ (Ins α (⊏ₑ-∈₁ x))
-preserve-↤ p | target-⊏ {f = Upd _ _} {Ins β} x = Ins₂ (Ins β (⊏ₑ-∈₂ x))
-preserve-↤ p | target-⊏ {f = Upd α γ} {Upd β φ} x 
-  = Map₂ (Upd α γ (⊏ₑ-∈₁ x)) (Upd β φ (⊏ₑ-∈₂ x)) (⟪⟫-⊏ (Upd α γ) (Upd β φ) x) 
 \end{minted}
+%preserve-↤ {e = e} p with diff-⊏ᵗ (mkDiff e) p
+%preserve-↤ p | target-⊏ {f = Ins α} x = Ins₁ (Ins α (⊏ₑ-∈₁ x))
+%preserve-↤ p | target-⊏ {f = Upd _ _} {Ins β} x = Ins₂ (Ins β (⊏ₑ-∈₂ x))
+%preserve-↤ p | target-⊏ {f = Upd α γ} {Upd β φ} x 
+%  = Map₂ (Upd α γ (⊏ₑ-∈₁ x)) (Upd β φ (⊏ₑ-∈₂ x)) (⟪⟫-⊏ (Upd α γ) (Upd β φ) x) 
 	
 	\paragraph{Corollary}
 	The next corollaries assert that \texttt{Diff} is order-preserving.
@@ -1901,19 +1950,18 @@ The main contributions of this thesis are:
 			data that employs insert, delete, update edits and \emph{global} 
 			alignment.
 	\item A state-based, three-way, persistent \texttt{diff3} algorithm.
-	\item A mechanically-verified formal model to reason about diffing 
+	\item A formal model to reason about diffing 
 				and merging.
 \end{itemize}
 
-In addition a number of results have been proved using the model, with
-the Agda proof assistant.
+In addition a number of results have been mechanically verified using the model, with the Agda proof assistant.
 \begin{itemize}
 	\item The necessary and sufficient conditions for the presence of conflicts 
 	have been pinpointed.
 	\item Some \textbf{safety properties}, which ensure the basic correctness 
 	of the algorithms, have been established and proved.
 	\item The \texttt{diff3} algorithm is \textbf{maximal}.
-	\item The algorithms preserve some well-defined \textbf{structural invariants}.
+	\item The algorithms preserve some well-defined \textbf{structural invariants}, such as order-preservation.
 \end{itemize}
 
 	\subsection{Related Work}
@@ -1923,17 +1971,18 @@ the Agda proof assistant.
 	interest in the topics of change detection and merge.
 	There are several tools that target structured data, with a particular
 	focus on the XML format, such as 
-	LaDiff in \cite{Chawathe96}, MH-Diff in \cite{Chawathe97}, 3DM in 
+	LaDiff \cite{Chawathe96}, MH-Diff  \cite{Chawathe97} and 3DM  
 	\cite{Lind01, Lind04, Lind05}.
-	Peters gives a comprehensive survey of them and others in 
+	Peters gives a comprehensive survey of them and others	
 	\cite{PetersSurvey}.
 	Synchronizers represent another closely related field.
 	Relevant examples include Unison, a file synchronizer \cite{Pierce98, 
 	UnisonSpec}; Harmony, a synchronizer for 
 	heterogeneous data	\cite{HarmonyOverview,Pierce07} by Pierce et al.\ and
-	\cite{Ramsey01}.
-	Lastly there are few mergers tailored for software artifacts, such
-	as \cite{Westfechtel91, Apel11} and those surveyed in \cite{Mens02}.
+	an algebra for file synchronization \cite{Ramsey01}.
+	Lastly there are many mergers tailored for software artifacts
+	\cite{Westfechtel91, Apel11}.
+	Mens gives a comprehensive survey of this field\cite{Mens02}.
 
 	\paragraph{Ordered and Unordered}
 	The merger discussed in this thesis is different from all of these, because,
@@ -1942,14 +1991,15 @@ the Agda proof assistant.
 	Being typed, the trees are inherently \emph{ordered}, while XML trees
 	could also be unordered. 
 	However there is a connection between types and schemas, 
-	which are essential for synchronization in \cite{Pierce07}.
-	Indeed the synchronizer proposed by Foster et al.\ preserves structural 
+	which Foster et al.\ consider essential for synchronization \cite{Pierce07}.
+	Indeed their synchronizer preserves structural 
 	invariants,  exploiting schemas to identify specific conflicts, 
 	named \emph{schema domain conflicts}. Similarly in this work a
 	merge is considered \emph{successful} only if it is well-typed 
 	\ref{subsec:Merged3}. 
-	Chawathe et al.\ in \cite{Chawathe96} assume that nodes have unique 
-	identifiers, which	greatly simplifies the change detection phase.
+	Chawathe et al.\ assume that nodes have unique 
+	identifiers \cite{Chawathe96}, 
+	which greatly simplifies the change detection phase.
 	However this assumption is too simplistic: data format do not usually mark
 	their content and even XML trees may or may not have  
 	identifiers in their nodes. The algorithms discussed in this thesis do
@@ -1960,10 +2010,10 @@ the Agda proof assistant.
 	The alignment strategy used to match parts in two versions plays
 	a central role in the quality of merges.
 
-	Khanna et al.\ explain in \cite{PierceDiff3} that GNU diff3 aligns lines
+	Khanna et al.\ explain that GNU diff3 aligns lines
 	computing \emph{stable} and \emph{unstable} \emph{chunks} from the 
-	longest common subsequences between the 	archive and the two versions, 
-	obtained by the \texttt{diff} subroutine.
+	longest common subsequences between the base and the two new versions, 
+	obtained by the \texttt{diff} subroutine \cite{PierceDiff3}.
 	Overlapping equal lines are matched and fused in stable chunks, leaving 
 	possibly conflicting chunks between them.
 	This technique works well in practice because (in software artifacts) lines
@@ -1975,19 +2025,20 @@ the Agda proof assistant.
 	unique might not hold for certain data formats and therefore it would 
 	misalign their content.
 	Therefore the diff discussed in this thesis strives to match single nodes,
-	computing an embedding of the archive tree into the other; furthermore
+	computing an embedding of the original tree into the other; furthermore
 	it respects their structured nature preserving the relative order of the 
 	nodes, in 	the depth first order traversal, as shown in section 
 	\ref{subsec:Embedding}.
-	This is achieved generalizing the copy edit to update and retaining the
+	This is achieved by generalizing the copy edit to update and retaining the
 	intuitive three-way merge technique for aligned edits.
 	The merger presented in this thesis employs a \emph{global} strategy
 	that produces an optimal alignment, minimizing an appropriate cost model.
-	Conversely Foster et al.\ in \cite{Pierce07} choose a \emph{local} strategy,
-	that associates subtrees by name.
-	In \cite{Chawathe96} Chawathe and Molina reduce the change detection
+	Conversely Foster et al.\ choose a \emph{local} strategy,
+	that associates subtrees by name \cite{Pierce07}.
+	Chawathe and Molina reduce the change detection
 	problem to a problem of computing a minimum-cost edge cover of 
-	a bipartite graph. They remark that for structured data this problem
+	a bipartite graph \cite{Chawathe96}. 
+	They remark that for structured data this problem
 	is NP-hard, therefore they develop an heuristic that consists
 	in pruning the graph induced by two trees following a set of pruning
 	rules and then 	further discard edges to find a \emph{minimal} edge cover.
@@ -2002,9 +2053,9 @@ the Agda proof assistant.
 	the actual shape of the trees, these class of objects will be 
 	badly matched and will be poorly merged, probably raising 
 	unnecessary conflicts.
-	Foster et al.\ in \cite{Pierce07}, remark to handle sets and records 
-	correctly, however this is due to the fact that their algorithm is 
-	schema-driven and internally handles schemas keys as sets. 
+	Foster's synchronizer handles sets and records 
+	correctly, but just because their algorithm is 
+	schema-driven and internally handles schema keys as sets \cite{Pierce07}.
 	On the other hand it performs poorly for lists, 
 	because it naively aligns lists by \emph{absolute} positions, due to the 
 	local alignment strategy used. 
@@ -2018,17 +2069,17 @@ the Agda proof assistant.
 	a fundamental role when merging changes.
 	The edits generated by GNU diff include only insert, delete and copy, 
 	which in this thesis has been broadened to update as explained previously.
-	Lindholm's 3dm \cite{Lind04} includes also the edit move, like Chawathe in 
-	\cite{Chawathe96, Chawathe97}, which additionally introduces also the 
-	glue edit that fuses two trees.
-	In \cite{Lind04} however copy consists of copying multiple nodes.
+	Lindholm includes also the edit move in his synchronizer \cite{Lind04}, 
+	like Chawathe \cite{Chawathe96, Chawathe97}, 
+	who additionally introduces also the glue edit that fuses two trees.
+	Lindholm however copy consists of copying multiple nodes \cite{Lind04}.
 	Since node sharing is not explicit this operation could easily produce 
 	surprising results, because it could match unrelated nodes. In XML
 	this is mitigated since large sections of text are likely unique, but
 	in our context it is in general an invalid assumption.
 	Move is quite a controversial edit.
 	It can be expressed in the model presented in this thesis by delete 
-	and insert, just like in \cite{Ramsey01}, however this sequence 
+	and insert, just like in Ramsey's \cite{Ramsey01}, however this sequence 
 	of edits might easily clash with possible updates in the other version,
 	raising unnecessary conflicts.
 	Crucially tree rearrangements	might not be recognized as a natural
@@ -2036,21 +2087,22 @@ the Agda proof assistant.
 	For example in a table filled with numbers it would look odd to describe
 	changes in few numbers using moves, but it is perfectly reasonable
 	to do it for rows shuffling. 
-	In \cite{Lind04}, \emph{contexts}, made of a node's parent, 
-	predecessor	and successor, are taken into account to improve the precision
-	in the change detection phase with respect to the move edit, 
-	however they also remark that there are few exceptions.
+	Lindholm takes into account the \emph{context}, made of a node's parent, 
+	predecessor	and successor, in order to improve the precision
+	in the change detection phase with respect to the move edit \cite{Lind04},
+	however he also remarks that there are few exceptions.
 	It is challenging to craft an alignment strategy that includes the move edit,
 	while keeping its semantics concise and clear, especially in presence
-	of multiple weight parameters, such as in \cite{Chawathe97}.
+	of multiple weight parameters, such as in the cost model 
+	defined by Chawathe \cite{Chawathe97}.
 	Furthermore mode edits would weaken the guarantees about the
 	structural invariants described in \ref{subsec:Embedding}.
-	Ramsey et al.\ remark in \cite{Ramsey01} that \emph{move} operations 
+	Ramsey et al.\ remark that the \emph{move} operation 
 	complicate reasoning, but they suggest to expose it to the user and 
-	translate	it using delete and insert for reasons of performance, retention of 
-	metadata 	and usability, however it is questionable whether this translation
-	preserves the original meaning.
-	
+	translate it using delete and insert for reasons of performance, retention of 
+	metadata 	and usability \cite{Ramsey01}.
+	It is however questionable whether this translation preserves the original 
+	meaning.	
 	
 	\paragraph{Formal Model}
 	The proliferation of commercial and research file synchronizers and
@@ -2059,19 +2111,20 @@ the Agda proof assistant.
 	automacally derived	 from a formal model \cite{Pierce98}.
 	Similarly Harmony is a schema-based
 	synchronization framework \cite{HarmonyOverview}, whose formal
-	properties have been studied extensively in \cite{Pierce07} and have
+	properties have been studied extensively \cite{Pierce07} and have
 	inspired the analysis conducted in section \ref{sec:FormalProp}.
-	Ramsey and Csirmaz in \cite{Ramsey01} proposes an algebraic approach to 
-	file synchronization. Differently from this thesis, \cite{Pierce98} and 
+	Ramsey and Csirmaz proposes an algebraic approach to 
+	file synchronization \cite{Ramsey01}. 
+	Differently from this thesis, Unison \cite{Pierce98} and Harmony 
 	\cite{Pierce07}, their model is operation-based, rather than state-based,
 	which enables an automatic conflict resolution phase named 
 	\emph{reconcilation}.
 	Nevertheless the sequence of operations performed at each replica
 	is computed in the update detection phase at each replica 
-	comparing the current version with the archive, i.e. the last synchronized 
+	comparing the current version with the archive, i.e.\ the last synchronized 
 	version. 
-	It is worth to point out that this phase is greatly simplified by the presence
-	of metadata in filesystems, which helps by disambiguating during 
+	It is worth pointing out that this phase is greatly simplified by the presence
+	of metadata in filesystems, which helps to disambiguate during 
 	the alignment phase and facilitates the change detection phase.
 	They propose a large proof system 	for a simple filesystem algebra, that
 	is proved to be sound and complete for it.
@@ -2084,17 +2137,17 @@ the Agda proof assistant.
 	prove it sound.
 	They claim that reasoning with algebraic laws is more convenient that 
 	reasoning directly with the mathematical formulation of the filesystem, 
-	however it looks like this approach would unlikely scale, since 
+	however it looks like this approach is unlikely to scale, since 
 	a simple model made of five operations requires about fifty laws to
 	be equivalently described algebraically.
 	The combinatorical explosion is due to the fact that laws relate
 	the effect of sequencing two operations. 	
-	The algebraic approach presented in \cite{Ramsey01} is interesting, but
+	Ramsey's algebraic approach is interesting, but
 	it relies too much in a clear detection of the operations performed, which 
 	for structured data is much more blurry. 
-	The 3dm tool presented in \cite{Lind04} does not include a 
+	The 3DM tool devised by Lindholm does not include a 
 	mechanically verified model and moreover the general merge rules 
-	have been derived analyzing the expected result of use cases.
+	have been derived analyzing the expected result of use cases \cite{Lind04}.
 	His change model is based on \emph{content} and \emph{structural 
 	change}. The changes in each version are combined into a change set
 	and can be merged only if the set is \emph{consistent}, i.e. 
@@ -2165,19 +2218,24 @@ the Agda proof assistant.
 	\paragraph{Ancestor successor order}		
 	Section \ref{subsec:Embedding} shows that the depth-first order
 	of the nodes in the source object are preserved in the target object,
-	and also in the merged object, upon a successful merge.
+	and also in the merged object, in case of a successful merge.
 	These properties give to the users some indication about the relative
 	position of the nodes in the merged object, however an even stronger
 	property could be enforced. In fact since the data diffed and merged is 
-	structured as trees, it would be natural to preserve also the ancestor, 
-	successor relationship between nodes.
+	structured as trees, it would be natural to preserve also the 
+	ancestor-successor relationship between nodes.
 	From the user point of view, this relation is certainly clearer and likely 
 	more meaningful than the previous one and moreover it fits nicely
 	with the idea of preserving the structure of the objects.
-	It is worth pointing out that the edit script data type is responsible
-	for enforcing these relations, hence its definition firstly needs to be 
-	adjusted accordingly, and not, as one might expect, the \texttt{diff}
-	algorithm.
+	Note that this property is stronger and implies the structural invariant
+	discussed in \ref{subsec:Embedding}.
+	The edit script data type compares source and target tree, flattening
+	them according to the depth-first order, therefore erasing any
+	vertical relation between their nodes. 
+	Consequently the edit script data type is responsible
+	for enforcing the relations between nodes, hence its definition 
+	needs to be	adjusted to retain the ancestor-successor relationship
+	between nodes. 
 	
 	\paragraph{Hook for data structures}
 	As discussed previously tree matching, diffing and merging is
@@ -2189,25 +2247,28 @@ the Agda proof assistant.
 	\paragraph{Move edit and Contexts}	
 	It would be interesting to optionally extend the model to include move
 	edits, since rearrangements of nodes is common for certain formats
-	such as XML and HTML. As \cite{Ramsey01} remarks this would 
+	such as XML and HTML. As Ramsey remarks, this would 
 	likely complicate the formal model and its properties, but it 
 	would certainly improve the user experience and the merging
 	capabilities.
-	The idea of node \emph{contexts} described in \cite{Lind01} ought
+	The idea of node \emph{contexts} described by Lindholm 
+	\cite{Lind01} ought
 	to be investigated further especially in presence of a move edit. 
-	It particularly fits nicely in this setting, since
-	the types of the parent, ancestor and successor nodes are strongly
-	related and could be exploited to align data correctly, producing 
+	It particularly fits nicely in this setting, not only 
+	because it corresponds to Huet's Zipper data structure \cite{Zipper} 
+	and McBride's derivative \cite{Derivative}, but also because
+	it allows to exploit the types of the parent, ancestor 
+	and successor nodes to align data correctly, producing 
 	well-typed trees.
 	Contexts could also be effectively employed in the second part of the
 	alignment phase, in which inserts are aligned with either other inserts,
-	or purposely added no-operations.
-	This naive approach could have a negative impact, 
-	in presence of many inserts because too simplistic. On the other contexts
-	could guide this stage finding valid matchings, based on their context. 
-		
+	or purposely added no-operations. In fact this
+	naive approach could have a negative impact, in presence of many inserts 
+	because too simplistic. In particular contexts 
+	could guide this stage, inserting nodes only in valid positions.
+			
 	% TODO remove when compiling the whole thesis	
-	\bibliographystyle{plain}
- 	\bibliography{svc}
+%	\bibliographystyle{plain}
+% 	\bibliography{svc}
 		
 \end{document}

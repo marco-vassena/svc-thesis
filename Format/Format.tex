@@ -117,6 +117,7 @@ Map [] '[Char, Int , Bool] :: [*]
 \end{verbatim}
 
 	\paragraph{Heterogeneous List}
+	\label{par:HLIst}
 	The data type \texttt{HList}, introduced by Kiselyov 
 	\cite{Kiselyov04stronglytyped}, is an heterogeneous list, 
 	indexed by a type level list. 
@@ -143,6 +144,7 @@ happend :: HList xs -> HList ys -> HList (xs :++: ys)
 \end{minted}
 
 	\paragraph{SList}
+	\label{par:SList}
 	\emph{Singleton types} are needed to support dependently 
 	typed programming in languages with a strict phase separation
 	between run-time and compile time \cite{Eisenberg12DTPS}, like Haskell.
@@ -261,7 +263,8 @@ cons = Iso f g
 
 \section{Format}
 \label{sec:Format}
-This thesis addresses the format problem presented in \ref{subsec:FormatIntro} by implementing an embedded domain specific language (EDSL) that describes two inverse semantics at once.
+This thesis addresses the format problem presented in 
+\ref{subsec:FormatMotivation} by implementing an embedded domain specific language (EDSL) that describes two inverse semantics at once.
 The specification itself, is agnostic to the semantics, which is chosen afterwards instantiating appropriately a type parameter.
 
 Context-free parsers are usually defined using applicative 
@@ -1560,7 +1563,7 @@ of the format combinators, hence explaining which formats can be
 correctly defined in this framework.
 
 % TODO remove
-	\bibliographystyle{plain}
- 	\bibliography{../svc}
+%	\bibliographystyle{plain}
+% 	\bibliography{../svc}
 
 \end{document}
