@@ -9,7 +9,8 @@ which aims to improve the quality of version control systems, by
 exploiting the knowledge of how data is encoded in a file.
 
 Firstly I have developed an EDSL for binary and text-based data formats, which
-automatically derives inverse parser and printer, given a format description.
+automatically derives inverse-by-construction 
+parser and printer, given a format description.
 Since a unique specification is given for each
 format, this technique ensures that parsers and printers are 
 always synchronized, therefore ensuring round-trip behaviour.
@@ -19,11 +20,14 @@ it can detect changes more precisely. In addition
 after a merge, the data can be serialized back to a file according to its format.
 
 Secondly I have implemented a data-type generic \texttt{diff} and \texttt{diff3}
-algorithm in Haskell. The data stored in a file is parsed and represented as
-a data type, which can be easily converted to the heterogeneous rose trees
-data type, a generic representation which is used in the \texttt{diff} and 
-\texttt{diff3} algorithms. The algorithms
-have been employed in a proof-of-concept structure-aware version
+algorithm in Haskell. 
+Version control systems employ these algorithms to perform their basic operations: \texttt{diff} tracks the history of changes made to
+some data, while \texttt{diff3} merges separate revisions.
+Generic programming techniques are required, because  it is unfeasible to implement specific versions of these algorithms, due to the multitude of different data formats available.	
+The data stored in a file is parsed producing a domain-specific data type, which is then converted to the heterogeneous rose trees
+data type, the generic representation employed in the \texttt{diff} and 
+\texttt{diff3} algorithms.
+The algorithms have been embedded in a proof-of-concept structure-aware version
 control system that shows the applicability of the theories studied in this 
 thesis.
 
@@ -33,9 +37,7 @@ The model provides an unambiguous specification of the algorithms
 and accurately describe their semantics.
 In addition the properties proved are a precious 
 source of information, useful to interpret and further 
-describe their behaviour. The formal model gives the foundations
-to further investigate the semantics of structure-aware version control
-systems.
+describe their behaviour. 
 
 The contributions of this thesis can be summarized in:
 \begin{itemize}
@@ -44,5 +46,98 @@ The contributions of this thesis can be summarized in:
 	\item A formal model that describes the semantics of these algorithms.
 	\item A proof-of-concept structure-aware version control system.
 \end{itemize}
+
+\subsection{Related and Future Work}
+This thesis covers several related topics: invertible parsing and printing, change detection and automatic merging of structured data and semantics of version control systems and synchronizers.  This is the first work of my knowledge that has combined results from these studies in the development of a proof-of-concept structure-aware 
+version control system, that employs data-type generic \texttt{diff} and
+\texttt{diff3} algorithms, whose semantics has been formalized in
+a proof assistant.
+
+\paragraph{Semantics of Format Description}
+Chapter \ref{chapter:FormatRepresentation} presents a promising approach
+to parsing and printing unification, which aims to derive inverse-by-construction parser and printer for a given format, using
+a format combinator library inspired by \cite{Rendel10ISD}.
+The central idea of the library is to define a small core of basic combinators,
+that essentially correspond to those of the \texttt{Functor}, \texttt{Applicative} and \texttt{Alternative} classes, which embody both the parsing and printing semantics at once. 
+Complex formats are described combining the basic combinators just like
+it happens in parser combinator libraries.
+The library assumes that the double semantics of each core combinator
+is \emph{valid}, i.e.\ each one inverts the other, and conjectures that
+parsers and printer obtained by composing them will be therefore
+\emph{consistent}.
+However it is a fundamental open research question whether the composition
+of \emph{valid} formats does in fact produce a \emph{valid} format.
+Section \ref{par:Termination} already hinders this conjecture,
+since the inverse printer of a simple parser, was actually
+non terminating. 
+Nevertheless termination is usually a thorny problem alone and
+in this setting it is further complicated by the mix
+of inductive and coinductive definitions, typical of
+parser combinator libraries.
+Danielsson develops a library of total parser combinators
+\cite{TotalParserCombinator}, that ensure termination exploiting 
+dependent types \cite{TotalParserCombinator}.
+More specifically both terminating parser and printer
+could be described introducing additional indexes that respectively
+mark infinite from finite parts of parsers and printers.
+His work certainly represents an excellent starting point to tackle
+the problem. 
+This technique also forms the basis for another work on 
+correct-by-construction pretty printers \cite{CorrectByConstruction}.
+Pretty-printers are indexed by a grammar and their output is valid with respect to it.
+It seems possible to combine these promising results to formally prove
+the correctness of a format combinator library based on these ideas.
+
+\paragraph{Move Edit}
+The set of edits available to describe the changes between two revisions
+is a crucial factor in the automatic merging capabilities of a 
+version control system. The more precise an edit script is, the less likely
+it is to trigger a false conflict when merging.
+Rearrangements of portions of texts occur often in certain data formats.
+For instance in a web-page, sections may be moved around, or 
+in a software artifact a refactoring tool may reorder the list of methods in 
+alphabetical order. All these changes are currently detected by GNU diff
+and the diff presented in this thesis as a series of inserts followed by deletes, which is just a rough approximation.
+Other tools, like Lindholm's 3DM \cite{Lind04}, provide a move edit, which
+appropriately represent these changes.
+It would be interesting to include a move edit in the edit data type and
+study how contexts \cite{Zipper, Derivative} can improve the 
+alignment phase.
+
+\paragraph{Semantics of Version Control}
+The formal model presented in this thesis specifically addresses
+the semantics of the data-type generic \texttt{diff} and \texttt{diff3} algorithms employed in a structure-aware version control system.
+As such it gives the foundations to further investigate the semantics of structure-aware version control systems. Swiestra and L\"oh study the
+semantics of version control systems using separation logic  in which operations are modeled using \emph{Hoare triples} 
+\cite{SemanticsOfVersionControl}.
+The operations are applied on the internal model of the repository, a shared stated described with the the preconditions and postconditions predicates, which represent respectively the repository before and after each operation.
+The history of a repository consists in a valid sequence of operations and branching is modeled with a conditional statement.
+With their model they intend to give sensible high-level specifications of a version control system, therefore they refrain from giving any 
+specific algorithm for change-detection and for merging branches.
+I believe it would be interesting to embed the formal model developed
+in this thesis into a similar more general framework. In particular
+the framework should explicitly represent branches and nodes, in order to 
+compute the lowest common ancestor that act as a base in the three-way merge.
+
+Swiestra and L\"oh begin their description considering firstly 
+a single binary file repository, then extend it to text files and lastly consider multiple files and directories. 
+For example they give a formal description of finite 
+mappings that encodes the file-system, the relative operations and their semantics.
+Clearly the model becomes a little bit more involved with every extension. 
+The advantage of the data-type generic approach discussed in this thesis
+is that these modifications are superfluous, as long as these data structures
+can be transformed into the generic representation.
+Unfortunately the algorithms proposed in this thesis work best with strongly 
+structured data and have poor performances with unordered collections,
+such as dictionaries.
+Properly diffing and merging unordered collections is an interesting research question, with important practical ramifications that should be investigated in future work.
+I expect that a complete satisfactory semantics cannot be given generically,
+however sets and dictionaries are probably the fundamental unordered collections, that are widespread in data formats.
+It is worth pointing out that the complication with respect to this class
+of data structures lies in the \emph{alignment phase} and not in
+the merging semantics. Currently the alignment is simplified by the fact
+that trees are processed in depth first order. Equivalent unordered collections
+can have multiple concrete representations, therefore this approach 
+would misalign nodes and most likely produce bogus conflicts.
 
 \end{document}

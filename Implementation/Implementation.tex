@@ -3,7 +3,6 @@
 \begin{document}
 \chapter{Haskell Implementation}
 \label{chp:Haskell}
-\todo{Remove tick from constructors in types}
 This chapter presents the Haskell implementation of the \texttt{diff}
 and \texttt{diff₃} algorithms discussed in \ref{chapter:FormalModel}.
 
@@ -77,7 +76,7 @@ tyEq _ _ = eqT
 \end{minted}
 
 	\subsection{Universe}
-	\label{subsec:Universe} \todo{Better name?}
+	\label{subsec:Universe}
 	The type class \texttt{Diff a} denotes that the type \texttt{a}
 	can be diffed.
 		
@@ -173,7 +172,6 @@ instance (Typeable a, KnownTList as) => KnownTList (a : as) where
 	type	class \texttt{Reify}, which converts a \texttt{TList as} 
 	into the corresponding singleton type 
 	\texttt{SList as}, introduced in \ref{par:SList}. 
-	\todo{Add section specific to SList}
 
 \begin{minted}{haskell}
 instance Reify TList where
@@ -235,7 +233,8 @@ data Edit as bs cs ds where
 
 data Edits xs ys where
   ENil :: Edits [] [] 
-  ECons :: Edit as bs cs ds -> Edits (as :++: xs) (cs :++: ys) -> Edits (bs :++: xs) (ds :++: ys) 
+  ECons :: Edit as bs cs ds -> Edits (as :++: xs) (cs :++: ys) 
+         -> Edits (bs :++: xs) (ds :++: ys) 
 \end{minted}
 	
 	The definition of \texttt{Edits} is rejected because the type parameters
@@ -258,13 +257,13 @@ data Edits xs ys where
 	each kind of edit. Note that this definition completely preserves type safety,
 	but it is only more repetitive.
 
-\todo{Margin fix}
 \begin{minted}{haskell}
 data ES xs ys where
+  End :: ES [] []
   Ins :: Diff a => F xs a -> ES ys (xs :++: zs) -> ES ys (a ': zs)
   Del :: Diff a => F xs a -> ES (xs :++: ys) zs -> ES (a ': ys) zs
-  Upd :: Diff a => F xs a -> F ys a -> ES (xs :++: zs) (ys :++: ws) -> ES (a ': zs) (a ': ws)
-  End :: ES [] []
+  Upd :: Diff a => F xs a -> F ys a -> ES (xs :++: zs) (ys :++: ws) 
+      -> ES (a ': zs) (a ': ws)
 \end{minted}
 
 	\subsection{Memoization}
@@ -1194,7 +1193,7 @@ lca p1 p2 =
 \label{CrissCrossImg}
 \end{figure}
 	
-	\subsection{Recursive three-way merge}
+	\subsection{Recursive Three-Way Merge}
 	The \emph{recursive three-way merge} algorithm is an extension
 	of the simple three-way merge algorithm, that applies in these
 	circumstances.
@@ -1214,7 +1213,8 @@ lca p1 p2 =
 	The recursive three-way merge can be easily implemented as follows:
 
 \begin{minted}{haskell}
-recursive3WayMerge :: (Hashable a, Diff a) => Path a -> Path a -> Either [Conflict] (Path a)
+recursive3WayMerge :: (Hashable a, Diff a) => Path a -> Path a 
+                      -> Either [Conflict] (Path a)
 recursive3WayMerge p q = 
   case lca p q of
     One a -> mergeWithAncestor p a q 
@@ -1230,8 +1230,8 @@ recursive3WayMerge p q =
 	\texttt{Path} is used as base.
 
 \begin{minted}{haskell}	
-mergeWithAncestor :: (Hashable a, Diff a) => Path a -> Path a -> Path a -> 
-                        Either [Conflict] (Path a)
+mergeWithAncestor :: (Hashable a, Diff a) => Path a -> Path a -> Path a 
+                     -> Either [Conflict] (Path a)
 mergeWithAncestor p a q = 
   case diff3 x o y of
     Left err -> Left err 

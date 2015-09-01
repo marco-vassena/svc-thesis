@@ -1,6 +1,6 @@
 % TODO remove draft to get syntax highlighting in code
 \documentclass[12pt,a4paper]{report}
-
+\usepackage[margin=110pt]{geometry}
 \usepackage{hyperref}
 \usepackage[parfill]{parskip}
 \usepackage{minted}
@@ -9,6 +9,10 @@
 \usepackage{color}
 \usepackage[dvipsnames]{xcolor}
 \definecolor{dgreen}{rgb}{0.,0.6,0.}
+
+% Set minted size
+%\usepackage{etoolbox}
+%\AtBeginEnvironment{minted}{\fontsize{11.75}{11.75}}
 
 % This is used to specify fonts and configurationss
 \usepackage[no-math]{fontspec}
@@ -47,15 +51,55 @@
 \newunicodechar{ᵗ}{$^t$}
 \newunicodechar{✗}{\xmark}
 
+\usepackage{pdfpages}
+
 \begin{document}
 
-\title{SVC - A prototype of a Structure-aware version control}
-\author{Marco Vassena 4110161} 
+\includepdf[pages={1}]{frontpage.pdf}
 
-\maketitle
+%
+%\begin{titlepage}
+%\begin{center}
+%
+%        \vspace*{1cm}
+%
+%\textbf{SVC \\}
+%\textbf{A prototype of a Structure-aware Version Control system}
+%
+%        \vspace{1.5cm}
+%
+%\end{center}
+%
+%\vfill
+%
+%\textbf{Marco Vassena \\ ICA-4110161} 
+
+%Computer Science \\
+%Utrecht University \\
+%The Netherlands\\
+%\date{\today}
+
+\abstract{
+This thesis studies the problem of structure-aware revision control,
+which consists of exploiting the knowledge of the structure
+of data to improve the quality of version control systems.
+Formats are firstly described using an EDSL, which distinguishes 
+meta-data from the actual content. From the unique format specification 
+inverse-by-construction parser and printer are derived.
+The data stored in a file is converted into a
+heterogeneous rose tree, a generic representation of algebraic data types,
+used by a \texttt{diff} and \texttt{diff3} algorithm to respectively 
+detect changes and merge revisions.
+Lastly the semantics and the properties of the two algorithms are studied 
+with a formal model developed in the Agda proof assistant. 
+}
+
+%The edit scripts generated are more precise and consider only, thus avoiding unnecessary 
+%conflicts.
+
 \tableofcontents
-\listoftodos 
 
+	
 \subfile{./Introduction/Introduction}
 \subfile{./Format/Format.tex}
 \subfile{./FormalModel/FormalModel.tex}
@@ -65,6 +109,38 @@
 
 \subfile{./Example/Example.tex}
 \subfile{./Conclusion/Conclusion.tex}
+
+\newpage
+
+\section*{Acknowledgments}
+I would like to thank my supervisor Dr. Wouter Swiestra for his guidance
+and constant support throughout this project. 
+Whenever I was stuck, he could set me on the right track to a solution,
+clarifying my problems and putting them in right words.
+My gratitude goes also to the Software Technology group, whose
+professors have inspired me and taught me so much in these two years.
+Their enthusiasm has sparkled in me the interest for functional programming and programming languages technologies to the point that I decided
+to pursue a PhD in these topics.
+I also gladly remember the afternoons spent with the Software Technology reading club, during which we were busy getting the most out of interesting papers and in constructive discussions.
+
+I would like to thank from the bottom of my heart my parents for 
+supporting me throughout my studies. None of this would have been possible
+without you. Studying at Utrecht University is a great opportunity and
+my only regret is that it would not let me see you, my sister Chiara, my hopefully future brother-in-law Mattia and my grandmother Clara as often as I wished.
+A special thanks goes to Laura for putting up with me in the busiest moments
+and sharing with me this fantastic experience.
+There a	re so many great adventures we have lived in these two years and
+thanks to you there is plenty of pictures to remember them all.
+I would like to thank my friends from Utrecht: João Pizani, Philipp, Wout and João Alpuim. I really had a great time with all of you and I hope we will
+keep in touch in the next years.
+I would like to thank also my friends from Delft: Enrico, Gherardo, Marco,
+Oana and Bronius. You are wonderful friends and I am very lucky to
+have met you.
+
+Lastly a special thanks goes to the Haskell Cafe and Agda mailing list
+for their concrete help, without which I could have not completed
+this project.
+These communities have provided me with very interesting insights and answered to my very technical questions.
 
 \bibliographystyle{plain}
 \bibliography{svc}

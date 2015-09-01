@@ -15,7 +15,7 @@ merge simultaneous changes as much as possible.
 
 	\section{Description of the problem}
 	\label{sec:Problem}
-	In software industry specific tools called version control systems (VCS),
+	In software industry specific tools called Version Control Systems (VCS),
 	such as Git \cite{GIT} and Mercurial \cite{Mercurial},
 	address the problem of content management for software artifacts.
 	Those tools employ line-based diff algorithms, such as GNU diff,
@@ -23,9 +23,9 @@ merge simultaneous changes as much as possible.
 	for source code. 
 	However they are not appropriate for any kind of data, 
 	because some are not naturally organized in lines of text.
-	For example binary formats, such as video and images, are not
+	For example binary formats, such as videos and images, are not
 	supported and even text-based formats, such as HTML and XML, 	
-	are not best handled, because single lines do not reflect 
+	are poorly supported, because single lines do not reflect 
 	the underlying tree-structure of their content.
 	
 	Whenever revision control is needed, embedded in a specific 
@@ -40,13 +40,13 @@ merge simultaneous changes as much as possible.
 	Sometimes this can be achieved automatically by merging algorithms 
 	such as the (recursive) \emph{three-way merge} and patch commutation 
 	\cite{Darcs}, otherwise a 
-	conflict is detected and the user must manually solve it and merge the 
-	changes appropriately. 
+	conflict is detected and the user must manually solve it, combining 
+	the conflicting 	changes appropriately. 
 	The GNU diff3 tool is a line-based algorithm employed in the
 	\emph{three-way merge}, that compares three files, 
 	the original version and two modified versions of that file.
 	When it succeeds it creates an edit script that includes changes from 
-	both the new versions and that, when applied to the original file, 
+	both the new versions and whose patch, when applied to the original file, 
 	produces a file that merges both.
 	However a line-based approach restricts
 	the opportunities of automatic merging for non 
@@ -58,7 +58,7 @@ merge simultaneous changes as much as possible.
 	As a result the outcome of complex merges is often hard to predict
 	and source of bug reports.
 
-\subsection{Research Questions}
+\section{Research Questions}
 This master thesis aims to develop a prototype of a structure-aware
 version control system that addresses the shortcomings of widespread 
 industrial-strength version control systems, which employs 
@@ -77,20 +77,19 @@ actual data from each file, in order to precisely diff the content, rather
 than its representation on disk, consequently each file has to parsed
  with respect to its format. Furthermore after merging the data stored in two
 versions of the same file, it has to serialize it back to disk for persistency.
-In this process it is essential to ensure consistency between parsing
-and unparsing.
+In this process it is essential to ensure consistency between the parsing and unparsing function.
 
-\emph{Is is possible to derive from a unique format description, both 
-parser and printer for it?}
+\emph{Is is possible to derive both parser and printer from a format
+description?}
 
 \paragraph{Generic Diff and Diff$_3$}
 Considering the profusion and the complexity of data formats, it is impractical
-to define specific algorithms diffing and merging algorithms for each of them.
+to study specific diffing and merging algorithms for each of them.
 However the data retrieved by parsers is always structured in a parse tree,
 which is usually represented as a domain-specific algebraic data type.
 
 \emph{Is it possible to exploit generic programming techniques
-to implement a generic diff and merge algorithm?}
+to implement a generic diff and merge algorithm for structured data?}
 
 \paragraph{Formal Model}
 Nowadays version control system play a vital role in collaborative environments, therefore their semantics ought to be put on a formal footing.
@@ -98,12 +97,12 @@ Their core features, management and merge of revisions,
 rely on diffing and merging algorithms, which should then be studied
 closely.
 
-\emph{Is it possible to formalize diffing and merging algorithms and study
+\emph{How can we formalize diffing and merging algorithms and study
 their properties?}
 
 
 
-\subsection{Overview}
+\section{Overview}
 Chapter \ref{chapter:FormatRepresentation} presents an embedded domain specific language for formats.
 The EDSL allows to describe binary and text data formats, from which it 
 is possible to derive automatically inverse parsers and printers.
@@ -126,7 +125,8 @@ The chapter includes also a proof-of-concept structure-aware version control sys
 in this thesis.
 
 Lastly chapter \ref{chp:Conclusion} concludes, summarizing
-the contributions of this thesis.
+the contributions of this thesis and presenting ideas for future
+work.
 
 
 %\section{Semantics formalization}
